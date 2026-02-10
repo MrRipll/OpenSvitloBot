@@ -1,7 +1,29 @@
-import { Device, Outage, Env } from '../types';
+import { Device, Outage } from '../types';
 
-export async function getDeviceByKey(db: D1Database, key: string): Promise<Device | null> {
-  return db.prepare('SELECT * FROM devices WHERE key = ?').bind(key).first<Device>();
+const DEFAULT_DEVICE_ID = 'default';
+
+export async function ensureDevice(db: D1Database): Promise<Device> {
+  const existing = await db
+    .prepare('SELECT * FROM devices WHERE id = ?')
+    .bind(DEFAULT_DEVICE_ID)
+    .first<Device>();
+  if (existing) return existing;
+
+  const now = Date.now();
+  await db
+    .prepare('INSERT INTO devices (id, name, created_at) VALUES (?, ?, ?)')
+    .bind(DEFAULT_DEVICE_ID, 'device', now)
+    .run();
+
+  return {
+    id: DEFAULT_DEVICE_ID,
+    name: 'device',
+    group_name: '',
+    status: 'unknown',
+    last_ping: null,
+    last_status_change: null,
+    created_at: now,
+  };
 }
 
 export async function getDeviceById(db: D1Database, id: string): Promise<Device | null> {
@@ -10,11 +32,6 @@ export async function getDeviceById(db: D1Database, id: string): Promise<Device 
 
 export async function getAllDevices(db: D1Database): Promise<Device[]> {
   const result = await db.prepare('SELECT * FROM devices ORDER BY group_name, name').all<Device>();
-  return result.results;
-}
-
-export async function getOnlineDevices(db: D1Database): Promise<Device[]> {
-  const result = await db.prepare("SELECT * FROM devices WHERE status = 'online'").all<Device>();
   return result.results;
 }
 
@@ -88,27 +105,19 @@ export async function getStaleOnlineDevices(db: D1Database, thresholdMs: number)
 
 export async function getStats(
   db: D1Database,
-  group: string | null,
   periodDays: number
 ): Promise<{ device_id: string; device_name: string; group_name: string; total_outage_seconds: number; outage_count: number }[]> {
   const since = Date.now() - periodDays * 24 * 60 * 60 * 1000;
-  let query = `
+  const query = `
     SELECT d.id as device_id, d.name as device_name, d.group_name,
            COALESCE(SUM(o.duration), 0) as total_outage_seconds,
            COUNT(o.id) as outage_count
     FROM devices d
     LEFT JOIN outages o ON d.id = o.device_id AND o.start_time > ? AND o.duration IS NOT NULL
+    GROUP BY d.id ORDER BY d.group_name, d.name
   `;
-  const binds: (string | number)[] = [since];
 
-  if (group) {
-    query += ' WHERE d.group_name = ?';
-    binds.push(group);
-  }
-
-  query += ' GROUP BY d.id ORDER BY d.group_name, d.name';
-
-  const result = await db.prepare(query).bind(...binds).all<{
+  const result = await db.prepare(query).bind(since).all<{
     device_id: string;
     device_name: string;
     group_name: string;
@@ -116,18 +125,4 @@ export async function getStats(
     outage_count: number;
   }>();
   return result.results;
-}
-
-export async function registerDevice(
-  db: D1Database,
-  id: string,
-  key: string,
-  name: string,
-  groupName: string
-): Promise<void> {
-  const now = Date.now();
-  await db
-    .prepare('INSERT INTO devices (id, key, name, group_name, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, key, name, groupName, now)
-    .run();
 }

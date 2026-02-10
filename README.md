@@ -31,6 +31,7 @@ When a device comes back online, you get a recovery notification with the outage
 | Secret | Description |
 |--------|-------------|
 | `CLOUDFLARE_API_TOKEN` | [Create token](https://dash.cloudflare.com/profile/api-tokens) — **"Edit Cloudflare Workers"** template + **D1 Edit** permission |
+| `API_KEY` | Any random string — used to authenticate all requests to the Worker |
 | `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | Send a message to your bot, then check `https://api.telegram.org/bot<TOKEN>/getUpdates` |
 
@@ -38,22 +39,13 @@ When a device comes back online, you get a recovery notification with the outage
 
 D1 database is created automatically on first deploy. Every push to `master` that touches `worker/` triggers a redeploy.
 
-### Register a device
+### Verify
 
-Open your browser and go to:
 ```
-https://your-worker.workers.dev/api/status
-```
-If you see `{"devices":[],...}` — it's working!
-
-Register a device (replace the URL):
-```
-curl -X POST https://your-worker.workers.dev/api/register \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Living Room", "group_name": "Apartment"}'
+https://your-worker.workers.dev/api/status?key=YOUR_API_KEY
 ```
 
-Save the `key` from the response — you'll need it for the ESP device.
+The device is auto-created on first ping. ESP firmware should ping `/ping?key=YOUR_API_KEY`.
 
 ### Flash an ESP device
 
@@ -83,12 +75,11 @@ Enter your Worker URL and you'll see live device status.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/ping?key=DEVICE_KEY` | Device heartbeat |
-| `GET` | `/api/status` | Current status of all devices |
-| `GET` | `/api/devices` | List registered devices |
-| `GET` | `/api/outages?days=7` | Outage history |
-| `GET` | `/api/stats?period=7d` | Aggregated statistics |
-| `POST` | `/api/register` | Register new device |
+| `GET` | `/ping?key=API_KEY` | Device heartbeat |
+| `GET` | `/api/status?key=API_KEY` | Current device status |
+| `GET` | `/api/devices?key=API_KEY` | Device list |
+| `GET` | `/api/outages?key=API_KEY&days=7` | Outage history |
+| `GET` | `/api/stats?key=API_KEY&period=7d` | Aggregated statistics |
 
 ## Telegram Notifications
 

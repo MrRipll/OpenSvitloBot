@@ -2,12 +2,13 @@ export interface Env {
   DB: D1Database;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
+  API_KEY: string;
+  OUTAGE_GROUP: string;
   CORS_ORIGIN: string;
 }
 
 export interface Device {
   id: string;
-  key: string;
   name: string;
   group_name: string;
   status: 'online' | 'offline' | 'unknown';

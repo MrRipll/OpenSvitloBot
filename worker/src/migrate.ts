@@ -1,7 +1,6 @@
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY,
-  key TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   group_name TEXT DEFAULT '',
   status TEXT DEFAULT 'unknown',

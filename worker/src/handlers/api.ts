@@ -34,12 +34,11 @@ export async function handleOutages(request: Request, env: Env): Promise<Respons
 
 export async function handleStats(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
-  const group = url.searchParams.get('group') || null;
   const periodParam = url.searchParams.get('period') || '7d';
   const periodDays = parseInt(periodParam.replace('d', ''), 10) || 7;
   const clampedDays = Math.min(Math.max(periodDays, 1), 90);
 
-  const stats = await getStats(env.DB, group, clampedDays);
+  const stats = await getStats(env.DB, clampedDays);
   const totalSeconds = clampedDays * 24 * 60 * 60;
 
   const result = stats.map((s) => ({

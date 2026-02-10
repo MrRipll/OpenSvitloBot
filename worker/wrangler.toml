@@ -8,7 +8,8 @@ crons = ["* * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "opensvitlobot-db"
-database_id = "" # Run: npx wrangler d1 create opensvitlobot-db
+database_id = "" # Injected by CI
 
 [vars]
 CORS_ORIGIN = "*"
+OUTAGE_GROUP = "GPV6.2"

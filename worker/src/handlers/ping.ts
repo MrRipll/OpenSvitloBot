@@ -1,26 +1,10 @@
 import { Env } from '../types';
-import { getDeviceByKey, recordPing, closeOutage, updateDeviceStatus } from '../services/db';
+import { ensureDevice, recordPing, closeOutage, updateDeviceStatus } from '../services/db';
 import { sendMessage, formatRecoveryMessage } from '../services/telegram';
+import { fetchSchedule, getNextScheduledOutage } from '../services/schedule';
 
-export async function handlePing(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const key = url.searchParams.get('key');
-
-  if (!key) {
-    return new Response(JSON.stringify({ error: 'Missing device key' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const device = await getDeviceByKey(env.DB, key);
-  if (!device) {
-    return new Response(JSON.stringify({ error: 'Unknown device' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
+export async function handlePing(env: Env): Promise<Response> {
+  const device = await ensureDevice(env.DB);
   const now = Date.now();
   const wasOffline = device.status === 'offline';
 
@@ -30,14 +14,19 @@ export async function handlePing(request: Request, env: Env): Promise<Response> 
     await updateDeviceStatus(env.DB, device.id, 'online', now);
     await closeOutage(env.DB, device.id, now);
 
-    const durationMs = device.last_status_change ? now - device.last_status_change : 0;
-    const durationMinutes = durationMs / 60000;
+    const offlineDurationMs = device.last_status_change ? now - device.last_status_change : 0;
 
-    const message = formatRecoveryMessage(device.name, device.group_name, new Date(now), durationMinutes);
+    let nextOutage: { start: string; end: string } | null = null;
+    const schedule = await fetchSchedule(env.OUTAGE_GROUP);
+    if (schedule) {
+      nextOutage = getNextScheduledOutage(schedule, new Date(now));
+    }
+
+    const message = formatRecoveryMessage(new Date(now), offlineDurationMs, nextOutage);
     await sendMessage(env, message);
   }
 
-  return new Response(JSON.stringify({ ok: true, device: device.name }), {
+  return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
   });
 }

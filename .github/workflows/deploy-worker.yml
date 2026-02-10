@@ -51,7 +51,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-      - name: Set Telegram secrets
+      - name: Set Worker secrets
         working-directory: worker
         run: |
           if [ -n "$TG_TOKEN" ]; then
@@ -60,7 +60,11 @@ jobs:
           if [ -n "$TG_CHAT" ]; then
             echo "$TG_CHAT" | npx wrangler secret put TELEGRAM_CHAT_ID
           fi
+          if [ -n "$API_KEY" ]; then
+            echo "$API_KEY" | npx wrangler secret put API_KEY
+          fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          API_KEY: ${{ secrets.API_KEY }}
