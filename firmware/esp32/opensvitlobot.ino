@@ -1,7 +1,7 @@
 /*
   OpenSvitloBot — ESP32 Firmware
   Sends periodic HTTPS pings to a Cloudflare Worker.
-  Configure WiFi, Worker URL, and Device Key via Serial on first boot.
+  Configure WiFi, Worker URL, and API key via Serial on first boot.
   Settings are stored in NVS (Preferences).
 */
 
@@ -18,7 +18,7 @@ Preferences prefs;
 String wifiSSID;
 String wifiPass;
 String workerURL;
-String deviceKey;
+String apiKey;
 unsigned long lastPing = 0;
 
 void setup() {
@@ -32,7 +32,7 @@ void setup() {
     wifiSSID = prefs.getString("ssid", "");
     wifiPass = prefs.getString("pass", "");
     workerURL = prefs.getString("url", "");
-    deviceKey = prefs.getString("key", "");
+    apiKey = prefs.getString("key", "");
     Serial.println("Loaded config from NVS");
   } else {
     Serial.println("No config found. Enter settings:");
@@ -60,7 +60,7 @@ void loop() {
 }
 
 bool sendPing() {
-  String url = workerURL + "/ping?key=" + deviceKey;
+  String url = workerURL + "/ping?key=" + apiKey;
 
   for (int attempt = 0; attempt < RETRY_COUNT; attempt++) {
     HTTPClient http;
@@ -106,7 +106,7 @@ void promptConfig() {
   wifiSSID = promptSerial("WiFi SSID: ");
   wifiPass = promptSerial("WiFi Password: ");
   workerURL = promptSerial("Worker URL (e.g. https://opensvitlobot.workers.dev): ");
-  deviceKey = promptSerial("Device Key: ");
+  apiKey = promptSerial("API Key: ");
 
   // Remove trailing slash from URL
   if (workerURL.endsWith("/")) {
@@ -116,7 +116,7 @@ void promptConfig() {
   prefs.putString("ssid", wifiSSID);
   prefs.putString("pass", wifiPass);
   prefs.putString("url", workerURL);
-  prefs.putString("key", deviceKey);
+  prefs.putString("key", apiKey);
   prefs.putBool("configured", true);
 
   Serial.println("Config saved to NVS!");

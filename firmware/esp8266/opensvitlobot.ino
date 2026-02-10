@@ -1,7 +1,7 @@
 /*
   OpenSvitloBot — ESP8266 Firmware
   Sends periodic HTTPS pings to a Cloudflare Worker.
-  Configure WiFi, Worker URL, and Device Key via Serial on first boot.
+  Configure WiFi, Worker URL, and API key via Serial on first boot.
   Settings are stored in EEPROM.
 */
 
@@ -27,7 +27,7 @@
 String wifiSSID;
 String wifiPass;
 String workerURL;
-String deviceKey;
+String apiKey;
 unsigned long lastPing = 0;
 
 void setup() {
@@ -41,7 +41,7 @@ void setup() {
     wifiSSID = readString(SSID_ADDR, 64);
     wifiPass = readString(PASS_ADDR, 64);
     workerURL = readString(URL_ADDR, 256);
-    deviceKey = readString(KEY_ADDR, 64);
+    apiKey = readString(KEY_ADDR, 64);
     Serial.println("Loaded config from EEPROM");
   } else {
     Serial.println("No config found. Enter settings:");
@@ -69,7 +69,7 @@ void loop() {
 }
 
 bool sendPing() {
-  String url = workerURL + "/ping?key=" + deviceKey;
+  String url = workerURL + "/ping?key=" + apiKey;
 
   for (int attempt = 0; attempt < RETRY_COUNT; attempt++) {
     std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
@@ -121,7 +121,7 @@ void promptConfig() {
   wifiSSID = promptSerial("WiFi SSID: ");
   wifiPass = promptSerial("WiFi Password: ");
   workerURL = promptSerial("Worker URL (e.g. https://opensvitlobot.workers.dev): ");
-  deviceKey = promptSerial("Device Key: ");
+  apiKey = promptSerial("API Key: ");
 
   // Remove trailing slash from URL
   if (workerURL.endsWith("/")) {
@@ -132,7 +132,7 @@ void promptConfig() {
   writeString(SSID_ADDR, 64, wifiSSID);
   writeString(PASS_ADDR, 64, wifiPass);
   writeString(URL_ADDR, 256, workerURL);
-  writeString(KEY_ADDR, 64, deviceKey);
+  writeString(KEY_ADDR, 64, apiKey);
   EEPROM.commit();
 
   Serial.println("Config saved to EEPROM!");
