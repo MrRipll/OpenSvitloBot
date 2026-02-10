@@ -27,6 +27,16 @@ DNSServer dnsServer;
 Preferences prefs;
 
 String wifiSSID, wifiPass, workerURL, apiKey;
+
+// Forward declarations
+bool tryConnect(unsigned long timeout);
+void startPortal();
+void stopPortal();
+void handleRoot();
+void handleSave();
+bool sendPing();
+void blinkLED(int interval);
+
 unsigned long lastPing = 0;
 unsigned long lastReconnect = 0;
 bool portalActive = false;
