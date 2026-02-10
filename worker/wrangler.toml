@@ -8,7 +8,7 @@ crons = ["* * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "opensvitlobot-db"
-database_id = ""
+database_id = "9db78428-b9a0-4f01-a01a-2fc5274115fc"
 
 [vars]
 CORS_ORIGIN = "*"
