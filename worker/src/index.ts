@@ -1,4 +1,5 @@
 import { Env } from './types';
+import { ensureSchema } from './migrate';
 import { handlePing } from './handlers/ping';
 import { handleRegister } from './handlers/register';
 import { handleStatus, handleDevices, handleOutages, handleStats } from './handlers/api';
@@ -35,6 +36,7 @@ export default {
     let response: Response;
 
     try {
+      await ensureSchema(env.DB);
       switch (url.pathname) {
         case '/ping':
           response = await handlePing(request, env);
@@ -92,6 +94,7 @@ export default {
   },
 
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+    await ensureSchema(env.DB);
     await checkDevices(env);
   },
 };

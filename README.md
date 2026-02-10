@@ -29,24 +29,13 @@ When a device comes back online, you get a recovery notification with the outage
 
 ## Quick Start
 
-### 1. One-Command Setup
+### 1. Deploy to Cloudflare (one click)
 
-Clone the repo and run the setup script — it creates the database, deploys the Worker, and configures Telegram:
+Click the **Deploy to Cloudflare** button above. Log in with a free Cloudflare account and follow the prompts. The database tables are created automatically on first request.
 
-```bash
-git clone https://github.com/MrRipll/OpenSvitloBot.git
-cd OpenSvitloBot
-bash setup.sh
-```
+### 2. Set up Telegram notifications
 
-The script will:
-1. Install dependencies
-2. Log you into Cloudflare (free account)
-3. Create the D1 database
-4. Deploy the Worker
-5. Prompt for your Telegram bot token and chat ID
-
-**Getting Telegram credentials:**
+In the Cloudflare dashboard go to **Workers & Pages > opensvitlobot > Settings > Variables and Secrets** and add:
 
 | Secret | How to get it |
 |--------|--------------|
