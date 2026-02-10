@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenSvitloBot — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <span class="logo-icon">💡</span>
+        <h1>OpenSvitloBot</h1>
+      </div>
+      <div class="header-meta">
+        <span class="live-dot"></span>
+        <span id="lastUpdate">Connecting...</span>
+      </div>
+    </header>
+
+    <!-- Config banner (shown when no API URL set) -->
+    <div class="config-banner" id="configBanner">
+      <label for="apiUrl">Worker API URL</label>
+      <input type="url" id="apiUrl" placeholder="https://opensvitlobot-xxx.workers.dev">
+      <button class="btn" id="saveConfig">Connect</button>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="summary">
+      <div class="card">
+        <div class="card-label">Devices</div>
+        <div class="card-value" id="totalDevices">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Online</div>
+        <div class="card-value green" id="onlineCount">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Offline</div>
+        <div class="card-value red" id="offlineCount">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Online now</div>
+        <div class="card-value green" id="uptimePercent">—</div>
+      </div>
+    </div>
+
+    <!-- Devices grid -->
+    <div class="section-title">Devices</div>
+    <div id="devicesGrid">
+      <div class="empty">
+        <div class="empty-icon">📡</div>
+        <p>Enter your Worker URL above to connect</p>
+      </div>
+    </div>
+
+    <!-- Recent outages -->
+    <div class="outages-section">
+      <div class="section-title">Recent Outages (7 days)</div>
+      <div id="outagesList">
+        <div class="empty"><p>No data yet</p></div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-section">
+      <div class="section-title">Uptime This Week</div>
+      <div class="chart-container">
+        <canvas id="uptimeChart" height="300"></canvas>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        <a href="https://github.com/MrRipll/OpenSvitloBot" target="_blank">OpenSvitloBot</a>
+        — open-source power outage monitoring
+      </p>
+    </footer>
+  </div>
+
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

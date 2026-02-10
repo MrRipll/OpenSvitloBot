@@ -1,0 +1,17 @@
+# Root wrangler.toml for "Deploy to Cloudflare" button
+# Actual config is in worker/wrangler.toml
+
+name = "opensvitlobot"
+main = "worker/src/index.ts"
+compatibility_date = "2024-05-12"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "opensvitlobot-db"
+database_id = ""
+
+[vars]
+CORS_ORIGIN = "*"

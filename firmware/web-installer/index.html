@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenSvitloBot — Web Installer</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #22c55e;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      max-width: 480px;
+      width: 100%;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .step { margin-bottom: 1.5rem; }
+    .step-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .step-num {
+      background: var(--accent);
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-desc { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.25rem; color: var(--muted); }
+    input {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    esp-web-install-button {
+      display: block;
+      margin-top: 1rem;
+    }
+    esp-web-install-button button,
+    .btn {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .note {
+      background: #1a1a2e;
+      border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      border-radius: 0 6px 6px 0;
+      margin-top: 1rem;
+    }
+    select {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>OpenSvitloBot Installer</h1>
+    <p class="subtitle">Flash your ESP device directly from the browser. No IDE needed.</p>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">1</span> Select your board</div>
+      <select id="board">
+        <option value="esp8266">ESP8266 (NodeMCU, Wemos D1 Mini)</option>
+        <option value="esp32">ESP32</option>
+      </select>
+    </div>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">2</span> Connect via USB and flash</div>
+      <p class="step-desc">Connect your ESP to this computer via USB cable, then click the button below.</p>
+      <esp-web-install-button id="installBtn" manifest="manifest-esp8266.json">
+        <button slot="activate">Flash Firmware</button>
+        <span slot="unsupported">Your browser does not support Web Serial. Use Chrome or Edge.</span>
+        <span slot="not-allowed">Serial access was denied.</span>
+      </esp-web-install-button>
+    </div>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">3</span> Configure via Serial Monitor</div>
+      <p class="step-desc">After flashing, open Serial Monitor (115200 baud) and enter:</p>
+      <label>WiFi SSID</label>
+      <input type="text" id="ssid" placeholder="Your WiFi network name" readonly>
+      <label>WiFi Password</label>
+      <input type="password" id="pass" placeholder="WiFi password" readonly>
+      <label>Worker URL</label>
+      <input type="url" id="url" placeholder="https://opensvitlobot-xxx.workers.dev" readonly>
+      <label>Device Key</label>
+      <input type="text" id="key" placeholder="From /api/register response" readonly>
+    </div>
+
+    <div class="note">
+      The input fields above are for your reference only. After flashing, connect to the device via
+      a serial terminal (Arduino IDE Serial Monitor, PuTTY, or <code>screen</code>) at 115200 baud
+      and type the values when prompted.
+    </div>
+  </div>
+
+  <script>
+    const boardSelect = document.getElementById('board');
+    const installBtn = document.getElementById('installBtn');
+
+    boardSelect.addEventListener('change', () => {
+      const board = boardSelect.value;
+      installBtn.setAttribute('manifest', `manifest-${board}.json`);
+    });
+  </script>
+</body>
+</html>

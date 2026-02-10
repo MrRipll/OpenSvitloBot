@@ -1,0 +1,84 @@
+name: Weekly Charts
+
+on:
+  schedule:
+    - cron: '0 18 * * 0'  # Sunday 18:00 UTC (21:00 Kyiv)
+  workflow_dispatch:
+
+jobs:
+  charts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch stats and send charts
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -e
+
+          if [ -z "$WORKER_URL" ] || [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Missing secrets, skipping chart generation"
+            exit 0
+          fi
+
+          # Fetch weekly stats
+          STATS=$(curl -sf "$WORKER_URL/api/stats?period=7d")
+          echo "Stats: $STATS"
+
+          # Build QuickChart URL for uptime
+          CHART_CONFIG=$(echo "$STATS" | python3 -c "
+          import json, sys, urllib.parse
+          data = json.load(sys.stdin)['stats']
+          if not data:
+              print('EMPTY')
+              sys.exit(0)
+          labels = [s['device_name'] for s in data]
+          values = [s['uptime_percent'] for s in data]
+          colors = ['#22c55e' if v >= 95 else '#eab308' if v >= 80 else '#ef4444' for v in values]
+          config = {
+              'type': 'bar',
+              'data': {
+                  'labels': labels,
+                  'datasets': [{'label': 'Uptime %', 'data': values, 'backgroundColor': colors}]
+              },
+              'options': {
+                  'indexAxis': 'y',
+                  'scales': {'x': {'min': 0, 'max': 100}},
+                  'plugins': {'title': {'display': True, 'text': 'Uptime за тиждень'}}
+              }
+          }
+          print(urllib.parse.quote(json.dumps(config)))
+          ")
+
+          if [ "$CHART_CONFIG" = "EMPTY" ]; then
+            echo "No stats data, skipping"
+            exit 0
+          fi
+
+          CHART_URL="https://quickchart.io/chart?c=${CHART_CONFIG}&w=600&h=400&bkg=white"
+
+          # Build summary text
+          SUMMARY=$(echo "$STATS" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['stats']
+          lines = ['📊 <b>Тижневий звіт OpenSvitloBot</b>\n']
+          for s in data:
+              emoji = '🟢' if s['uptime_percent'] >= 95 else '🟡' if s['uptime_percent'] >= 80 else '🔴'
+              lines.append(f\"{emoji} {s['device_name']}: {s['uptime_percent']}% uptime, {s['outage_count']} відключень ({s['total_outage_hours']}г)\")
+          print('\n'.join(lines))
+          ")
+
+          # Send chart to Telegram
+          curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+              \"photo\": \"${CHART_URL}\",
+              \"caption\": $(echo "$SUMMARY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),
+              \"parse_mode\": \"HTML\"
+            }"
+
+          echo "Chart sent to Telegram"
