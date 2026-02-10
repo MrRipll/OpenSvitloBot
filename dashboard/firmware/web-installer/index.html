@@ -133,22 +133,18 @@
     </div>
 
     <div class="step">
-      <div class="step-title"><span class="step-num">3</span> Configure via Serial Monitor</div>
-      <p class="step-desc">After flashing, open Serial Monitor (115200 baud) and enter:</p>
-      <label>WiFi SSID</label>
-      <input type="text" id="ssid" placeholder="Your WiFi network name" readonly>
-      <label>WiFi Password</label>
-      <input type="password" id="pass" placeholder="WiFi password" readonly>
-      <label>Worker URL</label>
-      <input type="url" id="url" placeholder="https://opensvitlobot-xxx.workers.dev" readonly>
-      <label>API Key</label>
-      <input type="text" id="key" placeholder="Your API_KEY from GitHub Secrets" readonly>
+      <div class="step-title"><span class="step-num">3</span> Configure via WiFi</div>
+      <p class="step-desc">After flashing, the device creates a WiFi network called
+        <strong>OpenSvitloBot-Setup</strong>. Connect to it from your phone or laptop,
+        a configuration page will open automatically. Enter your WiFi credentials,
+        Worker URL, and API key, then tap <em>Save &amp; Connect</em>.</p>
     </div>
 
     <div class="note">
-      The input fields above are for your reference only. After flashing, connect to the device via
-      a serial terminal (Arduino IDE Serial Monitor, PuTTY, or <code>screen</code>) at 115200 baud
-      and type the values when prompted.
+      If the configuration page doesn't open automatically, go to
+      <code>http://192.168.4.1</code> in your browser. On subsequent boots the device
+      connects to your saved WiFi. If it can't connect within 3 minutes, the setup
+      network reappears so you can reconfigure.
     </div>
   </div>
 
