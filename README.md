@@ -50,7 +50,7 @@ The device is auto-created on first ping. ESP firmware should ping `/ping?key=YO
 ### Flash an ESP device
 
 **Option A: Web Installer** (no IDE needed)
-- Visit the [Web Installer](https://MrRipll.github.io/OpenSvitloBot/firmware/web-installer/) in Chrome/Edge
+- Visit the [Web Installer](https://MrRipll.github.io/OpenSvitloBot/firmware/web-installer) in Chrome/Edge
 - Select your board, connect via USB, flash
 - Configure via Serial Monitor (115200 baud)
 
