@@ -1,8 +1,6 @@
 # OpenSvitloBot
 
-Open-source, self-deployable power outage monitoring system for Ukrainian households.
-
-Deploy your own instance on Cloudflare Workers (free tier) and monitor power outages with ESP8266/ESP32 devices and Telegram notifications.
+Power outage monitoring system for Ukrainian households. Cloudflare Workers + D1 + ESP8266/ESP32 + Telegram notifications.
 
 ---
 
@@ -25,60 +23,22 @@ ESP Device ──[HTTPS ping every 60s]──► Cloudflare Worker
 
 When a device comes back online, you get a recovery notification with the outage duration.
 
-## Deploy Your Own (5 minutes, no coding)
+## Deploy
 
-### Step 1 — Create your own copy
+1. Clone the repo
+2. Add repository secrets in **Settings → Secrets and variables → Actions**:
 
-Click **"Use this template"** → **"Create a new repository"** at the top of this page.
-Name it anything you like (e.g. `my-svitlobot`) and make it **public**.
+| Secret | Description |
+|--------|-------------|
+| `CLOUDFLARE_API_TOKEN` | [Create token](https://dash.cloudflare.com/profile/api-tokens) — **"Edit Cloudflare Workers"** template + **D1 Edit** permission |
+| `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT_ID` | Send a message to your bot, then check `https://api.telegram.org/bot<TOKEN>/getUpdates` |
 
-### Step 2 — Create a Cloudflare account
+3. Push to `master` — or run **Deploy Worker** manually from Actions
 
-Go to [dash.cloudflare.com](https://dash.cloudflare.com) and sign up (free).
+D1 database is created automatically on first deploy. Every push to `master` that touches `worker/` triggers a redeploy.
 
-### Step 3 — Create a D1 database
-
-1. In Cloudflare dashboard, go to **Workers & Pages → D1 SQL Database**
-2. Click **Create**
-3. Name it `opensvitlobot-db`, pick a region close to you
-4. Click **Create**
-5. Copy the **Database ID** (you'll need it in Step 5)
-
-### Step 4 — Create a Cloudflare API token
-
-1. Go to [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-2. Click **Create Token**
-3. Use the **"Edit Cloudflare Workers"** template
-4. Click **Continue to summary** → **Create Token**
-5. Copy the token (you'll need it in Step 5)
-
-### Step 5 — Set up GitHub secrets
-
-In **your new repo** go to **Settings → Secrets and variables → Actions** and add:
-
-| Secret | Value |
-|--------|-------|
-| `CLOUDFLARE_API_TOKEN` | The API token from Step 4 |
-| `CLOUDFLARE_D1_DATABASE_ID` | The Database ID from Step 3 |
-| `CLOUDFLARE_ACCOUNT_ID` | From Cloudflare dashboard URL: `dash.cloudflare.com/<THIS_PART>/...` |
-
-### Step 6 — Deploy
-
-Go to **Actions** tab in your repo, select **"Deploy Worker"**, click **"Run workflow"**.
-The Worker will be deployed and the database tables will be created automatically.
-
-Your Worker URL will be: `https://opensvitlobot.<your-subdomain>.workers.dev`
-
-### Step 7 — Set up Telegram notifications
-
-In Cloudflare dashboard go to **Workers & Pages → opensvitlobot → Settings → Variables and Secrets** and add:
-
-| Secret | How to get it |
-|--------|--------------|
-| `TELEGRAM_BOT_TOKEN` | Create a bot via [@BotFather](https://t.me/BotFather) on Telegram |
-| `TELEGRAM_CHAT_ID` | Send a message to your bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates` |
-
-### Step 8 — Register a device
+### Register a device
 
 Open your browser and go to:
 ```
@@ -95,7 +55,7 @@ curl -X POST https://your-worker.workers.dev/api/register \
 
 Save the `key` from the response — you'll need it for the ESP device.
 
-### Step 9 — Flash an ESP device
+### Flash an ESP device
 
 **Option A: Web Installer** (no IDE needed)
 - Visit the [Web Installer](https://MrRipll.github.io/OpenSvitloBot/firmware/web-installer/) in Chrome/Edge
@@ -107,7 +67,7 @@ Save the `key` from the response — you'll need it for the ESP device.
 - Upload to your board
 - Configure via Serial Monitor
 
-### Step 10 — View the dashboard
+### View the dashboard
 
 Enable GitHub Pages in your repo: **Settings → Pages → Source: GitHub Actions**.
 
