@@ -3,7 +3,7 @@ name: Deploy Dashboard
 on:
   push:
     branches: [main]
-    paths: ['dashboard/**']
+    paths: ['dashboard/**', 'firmware/**']
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,85 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP8266 core
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp8266:esp8266
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Compile ESP8266 firmware
+        run: |
+          arduino-cli compile \
+            --fqbn esp8266:esp8266:nodemcuv2 \
+            --output-dir build/esp8266 \
+            firmware/esp8266/opensvitlobot.ino
+
+      - name: Compile ESP32 firmware
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --output-dir build/esp32 \
+            firmware/esp32/opensvitlobot.ino
+
+      - name: Prepare firmware for web installer
+        run: |
+          DEST=dashboard/firmware/web-installer
+          mkdir -p "$DEST"
+
+          # ESP8266: single binary
+          cp build/esp8266/opensvitlobot.ino.bin "$DEST/opensvitlobot-esp8266.bin"
+
+          # ESP32: bootloader + partitions + boot_app0 + app
+          cp build/esp32/opensvitlobot.ino.bootloader.bin "$DEST/opensvitlobot-esp32-bootloader.bin"
+          cp build/esp32/opensvitlobot.ino.partitions.bin "$DEST/opensvitlobot-esp32-partitions.bin"
+          BOOT_APP0=$(find ~/.arduino15/packages/esp32 -name boot_app0.bin | head -1)
+          cp "$BOOT_APP0" "$DEST/boot_app0.bin"
+          cp build/esp32/opensvitlobot.ino.bin "$DEST/opensvitlobot-esp32.bin"
+
+      - name: Generate firmware manifests
+        run: |
+          DEST=dashboard/firmware/web-installer
+
+          cat > "$DEST/manifest-esp8266.json" <<'EOF'
+          {
+            "name": "OpenSvitloBot (ESP8266)",
+            "builds": [
+              {
+                "chipFamily": "ESP8266",
+                "parts": [
+                  { "path": "opensvitlobot-esp8266.bin", "offset": 0 }
+                ]
+              }
+            ]
+          }
+          EOF
+
+          cat > "$DEST/manifest-esp32.json" <<'EOF'
+          {
+            "name": "OpenSvitloBot (ESP32)",
+            "builds": [
+              {
+                "chipFamily": "ESP32",
+                "parts": [
+                  { "path": "opensvitlobot-esp32-bootloader.bin", "offset": 4096 },
+                  { "path": "opensvitlobot-esp32-partitions.bin", "offset": 32768 },
+                  { "path": "boot_app0.bin", "offset": 57344 },
+                  { "path": "opensvitlobot-esp32.bin", "offset": 65536 }
+                ]
+              }
+            ]
+          }
+          EOF
 
       - uses: actions/configure-pages@v5
 
