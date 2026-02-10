@@ -29,34 +29,29 @@ When a device comes back online, you get a recovery notification with the outage
 
 ## Quick Start
 
-### 1. Deploy the Worker
+### 1. One-Command Setup
 
-Click the **Deploy to Cloudflare** button above, or manually:
+Clone the repo and run the setup script — it creates the database, deploys the Worker, and configures Telegram:
 
 ```bash
-cd worker
-npm install
-npx wrangler d1 create opensvitlobot-db
-# Copy the database_id into wrangler.toml
-npx wrangler d1 execute opensvitlobot-db --file=./schema.sql
-npx wrangler deploy
+git clone https://github.com/MrRipll/OpenSvitloBot.git
+cd OpenSvitloBot
+bash setup.sh
 ```
 
-### 2. Set Secrets
+The script will:
+1. Install dependencies
+2. Log you into Cloudflare (free account)
+3. Create the D1 database
+4. Deploy the Worker
+5. Prompt for your Telegram bot token and chat ID
 
-In the Cloudflare dashboard (Workers > opensvitlobot > Settings > Variables):
+**Getting Telegram credentials:**
 
 | Secret | How to get it |
 |--------|--------------|
 | `TELEGRAM_BOT_TOKEN` | Create a bot via [@BotFather](https://t.me/BotFather) on Telegram |
 | `TELEGRAM_CHAT_ID` | Send a message to your bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates` |
-
-Or via CLI:
-
-```bash
-npx wrangler secret put TELEGRAM_BOT_TOKEN
-npx wrangler secret put TELEGRAM_CHAT_ID
-```
 
 ### 3. Register a Device
 
