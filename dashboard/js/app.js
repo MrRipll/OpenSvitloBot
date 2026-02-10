@@ -1,7 +1,7 @@
 /* OpenSvitloBot — Dashboard Application */
 
 const REFRESH_INTERVAL = 30000; // 30 seconds
-let API_BASE = localStorage.getItem('osvitlobot_api') || '';
+let API_BASE = '';
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,19 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const savedApi = localStorage.getItem('osvitlobot_api');
   if (savedApi) {
-    document.getElementById('apiUrl').value = savedApi;
-    API_BASE = savedApi;
+    API_BASE = normalizeUrl(savedApi);
+    document.getElementById('apiUrl').value = API_BASE;
     startDashboard();
   }
 
   document.getElementById('saveConfig').addEventListener('click', saveConfig);
 });
 
+function normalizeUrl(url) {
+  url = url.trim().replace(/\/$/, '');
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  return url;
+}
+
 function saveConfig() {
-  const url = document.getElementById('apiUrl').value.trim().replace(/\/$/, '');
+  const url = normalizeUrl(document.getElementById('apiUrl').value);
   if (!url) return;
   localStorage.setItem('osvitlobot_api', url);
   API_BASE = url;
+  document.getElementById('apiUrl').value = url;
   startDashboard();
 }
 
