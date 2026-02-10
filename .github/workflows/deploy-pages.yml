@@ -44,14 +44,14 @@ jobs:
           arduino-cli compile \
             --fqbn esp8266:esp8266:nodemcuv2 \
             --output-dir build/esp8266 \
-            firmware/esp8266/opensvitlobot.ino
+            firmware/esp8266
 
       - name: Compile ESP32 firmware
         run: |
           arduino-cli compile \
             --fqbn esp32:esp32:esp32 \
             --output-dir build/esp32 \
-            firmware/esp32/opensvitlobot.ino
+            firmware/esp32
 
       - name: Prepare firmware for web installer
         run: |
@@ -59,14 +59,14 @@ jobs:
           mkdir -p "$DEST"
 
           # ESP8266: single binary
-          cp build/esp8266/opensvitlobot.ino.bin "$DEST/opensvitlobot-esp8266.bin"
+          cp build/esp8266/esp8266.ino.bin "$DEST/opensvitlobot-esp8266.bin"
 
           # ESP32: bootloader + partitions + boot_app0 + app
-          cp build/esp32/opensvitlobot.ino.bootloader.bin "$DEST/opensvitlobot-esp32-bootloader.bin"
-          cp build/esp32/opensvitlobot.ino.partitions.bin "$DEST/opensvitlobot-esp32-partitions.bin"
+          cp build/esp32/esp32.ino.bootloader.bin "$DEST/opensvitlobot-esp32-bootloader.bin"
+          cp build/esp32/esp32.ino.partitions.bin "$DEST/opensvitlobot-esp32-partitions.bin"
           BOOT_APP0=$(find ~/.arduino15/packages/esp32 -name boot_app0.bin | head -1)
           cp "$BOOT_APP0" "$DEST/boot_app0.bin"
-          cp build/esp32/opensvitlobot.ino.bin "$DEST/opensvitlobot-esp32.bin"
+          cp build/esp32/esp32.ino.bin "$DEST/opensvitlobot-esp32.bin"
 
       - name: Generate firmware manifests
         run: |
