@@ -13,6 +13,7 @@ import fontLatin from '../../assets/inter-latin-400.ttf';
 import fontCyrillic from '../../assets/inter-cyrillic-400.ttf';
 
 let wasmReady = false;
+let lastChartHash = '';
 
 async function svgToPng(svg: string): Promise<Uint8Array> {
   if (!wasmReady) {
@@ -30,6 +31,12 @@ async function svgToPng(svg: string): Promise<Uint8Array> {
   return rendered.asPng();
 }
 
+async function hashSvg(svg: string): Promise<string> {
+  const data = new TextEncoder().encode(svg);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 interface OutageRow {
   start_time: number;
   end_time: number | null;
@@ -45,7 +52,7 @@ function kyivDateStr(date: Date): string {
 }
 
 interface ChartResult {
-  pngData: Uint8Array;
+  svg: string;
   caption: string;
   weekStartMs: number;
 }
@@ -116,13 +123,6 @@ async function buildChart(env: Env, refDate: Date): Promise<ChartResult | null> 
     days: chartDays,
   });
 
-  let pngData: Uint8Array;
-  try {
-    pngData = await svgToPng(svg);
-  } catch {
-    return null;
-  }
-
   let totalOutageHours = 0;
   let totalOutages = 0;
   for (const day of chartDays) {
@@ -137,7 +137,7 @@ async function buildChart(env: Env, refDate: Date): Promise<ChartResult | null> 
     `Відключень: ${totalOutages}, всього ${Math.round(totalOutageHours * 10) / 10} год\n` +
     `🟢 є світло  🔴 немає  🟡 графік увімк  ⬛ графік вимк`;
 
-  return { pngData, caption, weekStartMs };
+  return { svg, caption, weekStartMs };
 }
 
 export async function updateWeeklyChart(env: Env): Promise<void> {
@@ -149,21 +149,36 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
   const chart = await buildChart(env, now);
   if (!chart) return;
 
+  // Skip expensive PNG render + Telegram upload if SVG hasn't changed
+  const svgHash = await hashSvg(chart.svg);
   const row = await env.DB.prepare('SELECT message_id, week_start FROM telegram_chart WHERE id = 1').first<ChartRow>();
+
+  if (row && row.week_start === weekStartMs && svgHash === lastChartHash) {
+    return; // Nothing changed — skip render
+  }
+
+  let pngData: Uint8Array;
+  try {
+    pngData = await svgToPng(chart.svg);
+  } catch {
+    return;
+  }
 
   // Same week — just edit
   if (row && row.week_start === weekStartMs) {
-    await editMessageMediaBuffer(env, row.message_id, chart.pngData, chart.caption);
+    await editMessageMediaBuffer(env, row.message_id, pngData, chart.caption);
+    lastChartHash = svgHash;
     return;
   }
 
   // New week or first run — send new message
-  const messageId = await sendPhotoBufferGetId(env, chart.pngData, chart.caption);
+  const messageId = await sendPhotoBufferGetId(env, pngData, chart.caption);
   if (messageId) {
     await env.DB.prepare(
       'INSERT INTO telegram_chart (id, message_id, week_start) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET message_id = excluded.message_id, week_start = excluded.week_start'
     )
       .bind(messageId, weekStartMs)
       .run();
+    lastChartHash = svgHash;
   }
 }
