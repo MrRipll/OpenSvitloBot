@@ -152,13 +152,14 @@ export function formatOutageMessage(
   scheduledRestoration: string | null
 ): string {
   const lines = [
-    `🔴 ${kyivTimeStr(time)} Світло зникло`,
+    `<b>🔴 ${kyivTimeStr(time)} Світло зникло</b>`,
   ];
   if (onlineDurationMs > 0) {
     lines.push(`🕓 Воно було ${formatDuration(onlineDurationMs)}`);
   }
   if (scheduledRestoration) {
-    lines.push(`🗓 Очікуємо за графіком о ${scheduledRestoration}`);
+    const prefix = scheduledRestoration.startsWith('завтра') ? '' : 'о ';
+    lines.push(`🗓 Очікуємо за графіком ${prefix}<b>${scheduledRestoration}</b>`);
   }
   return lines.join('\n');
 }

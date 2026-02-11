@@ -78,7 +78,7 @@ export async function fetchSchedule(db: D1Database, group: string): Promise<Half
   }
 }
 
-/** When should the current outage end per schedule? Returns "HH:MM" or null. */
+/** When should the current outage end per schedule? Returns "HH:MM" or "завтра о HH:MM", or null. */
 export function getScheduledRestoration(schedule: HalfHourSlots[], now: Date): string | null {
   const { hours, minutes } = getKyivTime(now);
   const currentSlot = hours * 2 + (minutes >= 30 ? 1 : 0);
@@ -89,15 +89,16 @@ export function getScheduledRestoration(schedule: HalfHourSlots[], now: Date): s
     return null;
   }
 
-  // Walk forward from current slot to find first ON slot
+  // Walk forward from current slot to find first ON slot today
   if (schedule[0]) {
     for (let i = currentSlot; i < 48; i++) {
       if (schedule[0][i]) return slotToTime(i);
     }
   }
+  // Check tomorrow's schedule
   if (schedule[1]) {
     for (let i = 0; i < 48; i++) {
-      if (schedule[1][i]) return slotToTime(i);
+      if (schedule[1][i]) return `завтра о ${slotToTime(i)}`;
     }
   }
 
