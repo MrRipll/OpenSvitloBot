@@ -10,7 +10,7 @@ interface ScheduleData {
 // true = power on, false = power off
 type HalfHourSlots = boolean[];
 
-function parseDay(daySchedule: Record<string, string>): HalfHourSlots {
+export function parseDay(daySchedule: Record<string, string>): HalfHourSlots {
   const slots: boolean[] = [];
   for (let hour = 1; hour <= 24; hour++) {
     const val = daySchedule[String(hour)] || 'yes';

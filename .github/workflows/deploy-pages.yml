@@ -1,4 +1,4 @@
-name: Deploy Dashboard
+name: Deploy Web Installer
 
 on:
   push:

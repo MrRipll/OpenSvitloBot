@@ -38,6 +38,97 @@ export async function sendPhoto(env: Env, photoUrl: string, caption: string): Pr
   return resp.ok;
 }
 
+export async function sendPhotoGetId(env: Env, photoUrl: string, caption: string): Promise<number | null> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return null;
+
+  const url = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: env.TELEGRAM_CHAT_ID,
+      photo: photoUrl,
+      caption,
+      parse_mode: 'HTML',
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const data = await resp.json<{ ok: boolean; result?: { message_id: number } }>();
+  return data.ok && data.result ? data.result.message_id : null;
+}
+
+export async function editMessageMedia(
+  env: Env,
+  messageId: number,
+  photoUrl: string,
+  caption: string
+): Promise<boolean> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false;
+
+  const url = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/editMessageMedia`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: env.TELEGRAM_CHAT_ID,
+      message_id: messageId,
+      media: {
+        type: 'photo',
+        media: photoUrl,
+        caption,
+        parse_mode: 'HTML',
+      },
+    }),
+  });
+
+  return resp.ok;
+}
+
+export async function sendPhotoBufferGetId(
+  env: Env,
+  pngData: Uint8Array,
+  caption: string
+): Promise<number | null> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return null;
+
+  const url = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`;
+  const form = new FormData();
+  form.append('chat_id', env.TELEGRAM_CHAT_ID);
+  form.append('caption', caption);
+  form.append('parse_mode', 'HTML');
+  form.append('photo', new Blob([pngData], { type: 'image/png' }), 'chart.png');
+
+  const resp = await fetch(url, { method: 'POST', body: form });
+  if (!resp.ok) return null;
+  const data = await resp.json<{ ok: boolean; result?: { message_id: number } }>();
+  return data.ok && data.result ? data.result.message_id : null;
+}
+
+export async function editMessageMediaBuffer(
+  env: Env,
+  messageId: number,
+  pngData: Uint8Array,
+  caption: string
+): Promise<boolean> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false;
+
+  const url = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/editMessageMedia`;
+  const form = new FormData();
+  form.append('chat_id', env.TELEGRAM_CHAT_ID);
+  form.append('message_id', String(messageId));
+  form.append('media', JSON.stringify({
+    type: 'photo',
+    media: 'attach://photo',
+    caption,
+    parse_mode: 'HTML',
+  }));
+  form.append('photo', new Blob([pngData], { type: 'image/png' }), 'chart.png');
+
+  const resp = await fetch(url, { method: 'POST', body: form });
+  return resp.ok;
+}
+
 function kyivTimeStr(date: Date): string {
   return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
 }

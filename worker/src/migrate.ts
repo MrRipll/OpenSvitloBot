@@ -28,6 +28,18 @@ CREATE TABLE IF NOT EXISTS outages (
 CREATE INDEX IF NOT EXISTS idx_pings_device_time ON pings(device_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_outages_device ON outages(device_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
+
+CREATE TABLE IF NOT EXISTS schedule_cache (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  data TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS telegram_chart (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  message_id INTEGER NOT NULL,
+  week_start INTEGER NOT NULL
+);
 `;
 
 let migrated = false;

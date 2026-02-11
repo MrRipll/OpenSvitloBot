@@ -2,7 +2,9 @@ import { Env } from './types';
 import { ensureSchema } from './migrate';
 import { handlePing } from './handlers/ping';
 import { handleStatus, handleDevices, handleOutages, handleStats } from './handlers/api';
+import { handleWeekly } from './handlers/weekly';
 import { checkDevices } from './cron/check-devices';
+import { updateWeeklyChart } from './cron/update-chart';
 
 function corsHeaders(env: Env): Record<string, string> {
   return {
@@ -70,6 +72,10 @@ export default {
           response = await handleStats(request, env);
           break;
 
+        case '/api/weekly':
+          response = await handleWeekly(env);
+          break;
+
         default:
           response = new Response(JSON.stringify({ error: 'Not found' }), {
             status: 404,
@@ -90,5 +96,6 @@ export default {
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     await ensureSchema(env.DB);
     await checkDevices(env);
+    await updateWeeklyChart(env);
   },
 };
