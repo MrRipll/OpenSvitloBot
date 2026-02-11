@@ -83,22 +83,26 @@ export function getScheduledRestoration(schedule: HalfHourSlots[], now: Date): s
   const { hours, minutes } = getKyivTime(now);
   const currentSlot = hours * 2 + (minutes >= 30 ? 1 : 0);
 
-  // Check if current slot is actually scheduled as off
-  if (schedule[0] && schedule[0][currentSlot]) {
-    // Schedule says power should be ON — this is an unplanned outage
-    return null;
+  // Find the next OFF→ON transition from current position.
+  // First skip any remaining ON slots (if outage is unplanned / slightly early),
+  // then skip the OFF block, then return the first ON slot.
+  let i = currentSlot;
+
+  // Skip current ON slots (unplanned outage — schedule still says ON)
+  if (schedule[0]) {
+    while (i < 48 && schedule[0][i]) i++;
   }
 
-  // Walk forward from current slot to find first ON slot today
+  // Find first ON slot after the OFF block — today
   if (schedule[0]) {
-    for (let i = currentSlot; i < 48; i++) {
+    for (; i < 48; i++) {
       if (schedule[0][i]) return slotToTime(i);
     }
   }
   // Check tomorrow's schedule
   if (schedule[1]) {
-    for (let i = 0; i < 48; i++) {
-      if (schedule[1][i]) return `завтра о ${slotToTime(i)}`;
+    for (let j = 0; j < 48; j++) {
+      if (schedule[1][j]) return `завтра о ${slotToTime(j)}`;
     }
   }
 
