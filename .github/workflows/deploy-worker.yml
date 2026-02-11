@@ -20,31 +20,6 @@ jobs:
         working-directory: worker
         run: npm install
 
-      - name: Ensure D1 database exists
-        id: d1
-        working-directory: worker
-        run: |
-          OUTPUT=$(npx wrangler d1 create opensvitlobot-db 2>&1) || true
-          DB_ID=$(echo "$OUTPUT" | grep -oP 'database_id\s*=\s*"\K[^"]+')
-
-          if [ -z "$DB_ID" ]; then
-            LIST_OUTPUT=$(npx wrangler d1 list 2>&1)
-            DB_ID=$(echo "$LIST_OUTPUT" | grep -B5 'opensvitlobot-db' | grep -oP '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
-          fi
-
-          if [ -z "$DB_ID" ]; then
-            echo "::error::Failed to get D1 database ID"
-            exit 1
-          fi
-
-          echo "database_id=$DB_ID" >> "$GITHUB_OUTPUT"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-      - name: Inject D1 database ID
-        working-directory: worker
-        run: sed -i "s/database_id = \"\"/database_id = \"${{ steps.d1.outputs.database_id }}\"/" wrangler.toml
-
       - name: Deploy
         working-directory: worker
         run: npx wrangler deploy

@@ -1,7 +1,6 @@
 node_modules/
 .wrangler/
 .dev.vars
-.wrangler.toml
 .claude/
 dist/
 *.log
