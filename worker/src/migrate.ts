@@ -9,13 +9,6 @@ CREATE TABLE IF NOT EXISTS devices (
   created_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS pings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  device_id TEXT NOT NULL,
-  timestamp INTEGER NOT NULL,
-  FOREIGN KEY (device_id) REFERENCES devices(id)
-);
-
 CREATE TABLE IF NOT EXISTS outages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   device_id TEXT NOT NULL,
@@ -25,15 +18,8 @@ CREATE TABLE IF NOT EXISTS outages (
   FOREIGN KEY (device_id) REFERENCES devices(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_pings_device_time ON pings(device_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_outages_device ON outages(device_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
-
-CREATE TABLE IF NOT EXISTS schedule_cache (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  data TEXT NOT NULL,
-  fetched_at INTEGER NOT NULL
-);
 
 CREATE TABLE IF NOT EXISTS schedule_days (
   date TEXT NOT NULL,

@@ -1,8 +1,6 @@
 import { Env } from './types';
 import { ensureSchema } from './migrate';
 import { handlePing } from './handlers/ping';
-import { handleStatus, handleDevices, handleOutages, handleStats } from './handlers/api';
-import { handleWeekly } from './handlers/weekly';
 import { checkDevices } from './cron/check-devices';
 import { updateWeeklyChart } from './cron/update-chart';
 import { refreshScheduleCache } from './services/schedule-cache';
@@ -55,26 +53,6 @@ export default {
       switch (url.pathname) {
         case '/ping':
           response = await handlePing(env);
-          break;
-
-        case '/api/status':
-          response = await handleStatus(env);
-          break;
-
-        case '/api/devices':
-          response = await handleDevices(env);
-          break;
-
-        case '/api/outages':
-          response = await handleOutages(request, env);
-          break;
-
-        case '/api/stats':
-          response = await handleStats(request, env);
-          break;
-
-        case '/api/weekly':
-          response = await handleWeekly(env);
           break;
 
         default:
