@@ -45,8 +45,8 @@ function getWeekBounds(now: Date): { weekStartMs: number; weekEndMs: number; wee
   const sundayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date(sundayMs - 86400000));
 
   return {
-    weekStartMs: mondayMs - kyivOffsetMs,
-    weekEndMs: sundayMs - kyivOffsetMs,
+    weekStartMs: mondayMs + kyivOffsetMs,
+    weekEndMs: sundayMs + kyivOffsetMs,
     weekStartDate: mondayDate,
     weekEndDate: sundayDate,
   };
