@@ -348,19 +348,23 @@ export function buildWeeklyChartSVG(data: ChartData): string {
   const bFont = `font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700"`;
   const upPct = Math.round((stats.totalPowerOnHours / Math.max(stats.elapsedHours, 1)) * 1000) / 10;
 
-  const statLines: [number, string, string][] = [
-    [col1, '🟢 Зі світлом: ', `${fmtHours(stats.totalPowerOnHours)} (${upPct}%)`],
-    [col2, '🔴 Без світла: ', `${fmtHours(stats.totalPowerOffHours)}, ${stats.outageCount} відкл.`],
-    [col1, '⏱ Найдовше зі світлом: ', `${fmtHours(stats.longestOn)}`],
-    [col2, '⏱ Найдовше без світла: ', `${fmtHours(stats.longestOff)}`],
-    [col1, '📊 Середнє відключення: ', `${fmtHours(stats.avgOutage)}`],
-    [col2, '📊 Різниця від графіку: ', `${stats.diffMinutes > 0 ? '+' : ''}${stats.diffMinutes}хв (${stats.diffPercent > 0 ? '+' : ''}${stats.diffPercent}%)`],
+  const statLines: [number, string | null, string, string][] = [
+    [col1, C.green, 'Зі світлом: ', `${fmtHours(stats.totalPowerOnHours)} (${upPct}%)`],
+    [col2, C.red, 'Без світла: ', `${fmtHours(stats.totalPowerOffHours)}, ${stats.outageCount} відкл.`],
+    [col1, null, 'Найдовше зі світлом: ', `${fmtHours(stats.longestOn)}`],
+    [col2, null, 'Найдовше без світла: ', `${fmtHours(stats.longestOff)}`],
+    [col1, null, 'Середнє відключення: ', `${fmtHours(stats.avgOutage)}`],
+    [col2, null, 'Різниця від графіку: ', `${stats.diffMinutes > 0 ? '+' : ''}${stats.diffMinutes}хв (${stats.diffPercent > 0 ? '+' : ''}${stats.diffPercent}%)`],
   ];
 
   for (let i = 0; i < statLines.length; i++) {
-    const [x, label, value] = statLines[i];
+    const [x, dot, label, value] = statLines[i];
     const y = statsTop + 8 + Math.floor(i / 2) * lineH;
-    p.push(`<text x="${x}" y="${y}" fill="${C.statLabel}" ${sFont}>${esc(label)}<tspan ${bFont}>${esc(value)}</tspan></text>`);
+    const textX = dot ? x + 12 : x;
+    if (dot) {
+      p.push(`<circle cx="${x + 4}" cy="${y - 3}" r="4" fill="${dot}"/>`);
+    }
+    p.push(`<text x="${textX}" y="${y}" fill="${C.statLabel}" ${sFont}>${esc(label)}<tspan ${bFont}>${esc(value)}</tspan></text>`);
   }
 
   p.push('</svg>');
