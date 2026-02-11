@@ -1,12 +1,3 @@
-const SCHEDULE_URL = 'https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/data/kyiv-region.json';
-
-interface ScheduleData {
-  fact: {
-    data: Record<string, Record<string, Record<string, string>>>;
-    today: number;
-  };
-}
-
 // true = power on, false = power off
 type HalfHourSlots = boolean[];
 
@@ -51,25 +42,35 @@ function getKyivTime(date: Date): { hours: number; minutes: number } {
   return { hours, minutes };
 }
 
-export async function fetchSchedule(group: string): Promise<HalfHourSlots[] | null> {
-  try {
-    const resp = await fetch(SCHEDULE_URL);
-    if (!resp.ok) return null;
-    const data: ScheduleData = await resp.json();
+const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' });
 
-    const days = data.fact.data;
-    const today = data.fact.today;
-    const todayKey = String(today);
-    const tomorrowKey = String(today + 86400);
+/**
+ * Read today's and tomorrow's schedule from the schedule_days cache.
+ * Returns [todaySlots, tomorrowSlots] or null if no data.
+ */
+export async function fetchSchedule(db: D1Database, group: string): Promise<HalfHourSlots[] | null> {
+  try {
+    const now = new Date();
+    const today = dateFmt.format(now);
+    const tomorrow = dateFmt.format(new Date(now.getTime() + 86400000));
+
+    const rows = await db
+      .prepare('SELECT date, slots FROM schedule_days WHERE group_name = ? AND date IN (?, ?)')
+      .bind(group, today, tomorrow)
+      .all<{ date: string; slots: string }>();
+
+    const byDate = new Map<string, HalfHourSlots>();
+    for (const row of rows.results) {
+      try {
+        byDate.set(row.date, JSON.parse(row.slots));
+      } catch {
+        // skip corrupted
+      }
+    }
 
     const result: HalfHourSlots[] = [];
-
-    if (days[todayKey]?.[group]) {
-      result.push(parseDay(days[todayKey][group]));
-    }
-    if (days[tomorrowKey]?.[group]) {
-      result.push(parseDay(days[tomorrowKey][group]));
-    }
+    if (byDate.has(today)) result.push(byDate.get(today)!);
+    if (byDate.has(tomorrow)) result.push(byDate.get(tomorrow)!);
 
     return result.length > 0 ? result : null;
   } catch {

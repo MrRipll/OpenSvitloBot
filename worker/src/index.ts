@@ -5,6 +5,7 @@ import { handleStatus, handleDevices, handleOutages, handleStats } from './handl
 import { handleWeekly } from './handlers/weekly';
 import { checkDevices } from './cron/check-devices';
 import { updateWeeklyChart } from './cron/update-chart';
+import { refreshScheduleCache } from './services/schedule-cache';
 
 function corsHeaders(env: Env): Record<string, string> {
   return {
@@ -96,6 +97,12 @@ export default {
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     await ensureSchema(env.DB);
     await checkDevices(env);
+
+    const minutes = new Date().getMinutes();
+    if (minutes % 5 === 0) {
+      await refreshScheduleCache(env.DB, env.OUTAGE_GROUP);
+    }
+
     await updateWeeklyChart(env);
   },
 };

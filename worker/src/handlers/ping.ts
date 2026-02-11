@@ -17,7 +17,7 @@ export async function handlePing(env: Env): Promise<Response> {
     const offlineDurationMs = device.last_status_change ? now - device.last_status_change : 0;
 
     let nextOutage: { start: string; end: string } | null = null;
-    const schedule = await fetchSchedule(env.OUTAGE_GROUP);
+    const schedule = await fetchSchedule(env.DB, env.OUTAGE_GROUP);
     if (schedule) {
       nextOutage = getNextScheduledOutage(schedule, new Date(now));
     }

@@ -17,7 +17,7 @@ export async function checkDevices(env: Env): Promise<void> {
     const onlineDurationMs = device.last_status_change ? now - device.last_status_change : 0;
 
     let scheduledRestoration: string | null = null;
-    const schedule = await fetchSchedule(env.OUTAGE_GROUP);
+    const schedule = await fetchSchedule(env.DB, env.OUTAGE_GROUP);
     if (schedule) {
       scheduledRestoration = getScheduledRestoration(schedule, new Date(now));
     }

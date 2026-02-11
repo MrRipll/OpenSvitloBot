@@ -33,18 +33,20 @@ function kyivDateStr(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(date);
 }
 
-export async function updateWeeklyChart(env: Env): Promise<void> {
-  const now = new Date();
-  const p = getKyivParts(now);
+interface ChartResult {
+  pngData: Uint8Array;
+  caption: string;
+  weekStartMs: number;
+}
 
-  const isMonday8AM = p.dow === 1 && p.hours === 8 && p.minutes < 2;
-  const isHalfHour = p.minutes < 2 || (p.minutes >= 30 && p.minutes < 32);
-
-  if (!isMonday8AM && !isHalfHour) return;
-
-  // Build the weekly data
-  const todayStr = kyivDateStr(now);
-  const { weekStartMs, weekEndMs, weekStartDate } = getWeekBounds(now);
+/**
+ * Build chart PNG + caption for the week containing `refDate`.
+ * If `complete` is true, all 7 days are rendered as past (no "today" / future).
+ */
+async function buildChart(env: Env, refDate: Date, complete: boolean): Promise<ChartResult | null> {
+  const p = getKyivParts(refDate);
+  const refDateStr = kyivDateStr(refDate);
+  const { weekStartMs, weekEndMs, weekStartDate } = getWeekBounds(refDate);
 
   const dayDates: string[] = [];
   for (let i = 0; i < 7; i++) {
@@ -52,7 +54,6 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
     dayDates.push(kyivDateStr(d));
   }
 
-  // Query outages
   const safeStart = weekStartMs - 86400000;
   const outageResult = await env.DB.prepare(
     'SELECT start_time, end_time FROM outages WHERE start_time < ? AND (end_time IS NULL OR end_time > ?) ORDER BY start_time'
@@ -61,21 +62,20 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
     .all<OutageRow>();
   const outageRows = outageResult.results || [];
 
-  // Fetch schedule
   const schedule = await getScheduleForWeek(env.DB, env.OUTAGE_GROUP, weekStartMs, weekEndMs);
 
-  // Build chart day data
   const chartDays = dayDates.map((dateStr, i) => {
-    const isFuture = dateStr > todayStr;
-    const isToday = dateStr === todayStr;
     const dayStartMs = weekStartMs + i * 86400000;
     const dayEndMs = dayStartMs + 86400000;
 
+    const isToday = !complete && dateStr === refDateStr;
+    const isFuture = !complete && dateStr > refDateStr;
+
     const outages: { startHour: number; endHour: number }[] = [];
     if (!isFuture) {
-      const cutoff = isToday ? now.getTime() : dayEndMs;
+      const cutoff = isToday ? refDate.getTime() : dayEndMs;
       for (const o of outageRows) {
-        const oEnd = o.end_time ?? now.getTime();
+        const oEnd = o.end_time ?? refDate.getTime();
         if (oEnd <= dayStartMs || o.start_time >= cutoff) continue;
         const s = Math.max(o.start_time, dayStartMs);
         const e = Math.min(oEnd, cutoff);
@@ -98,7 +98,6 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
     };
   });
 
-  // Build SVG
   const [, sm, sd] = weekStartDate.split('-');
   const lastDate = dayDates[6];
   const [, em, ed] = lastDate.split('-');
@@ -110,15 +109,13 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
     days: chartDays,
   });
 
-  // Convert SVG → PNG
   let pngData: Uint8Array;
   try {
     pngData = await svgToPng(svg);
   } catch {
-    return;
+    return null;
   }
 
-  // Build caption
   let totalOutageHours = 0;
   let totalOutages = 0;
   for (const day of chartDays) {
@@ -133,19 +130,47 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
     `Відключень: ${totalOutages}, всього ${Math.round(totalOutageHours * 10) / 10} год\n` +
     `🟢 є світло  🔴 немає  🟡 графік увімк  ⬛ графік вимк`;
 
-  if (isMonday8AM) {
-    const messageId = await sendPhotoBufferGetId(env, pngData, caption);
-    if (messageId) {
-      await env.DB.prepare(
-        'INSERT INTO telegram_chart (id, message_id, week_start) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET message_id = excluded.message_id, week_start = excluded.week_start'
-      )
-        .bind(messageId, weekStartMs)
-        .run();
+  return { pngData, caption, weekStartMs };
+}
+
+export async function updateWeeklyChart(env: Env): Promise<void> {
+  const now = new Date();
+  const p = getKyivParts(now);
+
+  const isTenMin = p.minutes % 10 < 2;
+  if (!isTenMin) return;
+
+  const { weekStartMs } = getWeekBounds(now);
+  const row = await env.DB.prepare('SELECT message_id, week_start FROM telegram_chart WHERE id = 1').first<ChartRow>();
+
+  // Week changed — finalize old week's chart, then send new
+  if (row && row.week_start !== weekStartMs) {
+    const prevSunday = new Date(row.week_start + 7 * 86400000 - 60000);
+    const finalChart = await buildChart(env, prevSunday, true);
+    if (finalChart) {
+      await editMessageMediaBuffer(env, row.message_id, finalChart.pngData, finalChart.caption);
     }
-  } else {
-    const row = await env.DB.prepare('SELECT message_id, week_start FROM telegram_chart WHERE id = 1').first<ChartRow>();
-    if (row) {
-      await editMessageMediaBuffer(env, row.message_id, pngData, caption);
+  }
+
+  // Edit existing message for current week
+  if (row && row.week_start === weekStartMs) {
+    const chart = await buildChart(env, now, false);
+    if (chart) {
+      await editMessageMediaBuffer(env, row.message_id, chart.pngData, chart.caption);
     }
+    return;
+  }
+
+  // No message for this week — send new
+  const chart = await buildChart(env, now, false);
+  if (!chart) return;
+
+  const messageId = await sendPhotoBufferGetId(env, chart.pngData, chart.caption);
+  if (messageId) {
+    await env.DB.prepare(
+      'INSERT INTO telegram_chart (id, message_id, week_start) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET message_id = excluded.message_id, week_start = excluded.week_start'
+    )
+      .bind(messageId, weekStartMs)
+      .run();
   }
 }

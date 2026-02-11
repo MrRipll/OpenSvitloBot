@@ -1,7 +1,6 @@
 import { parseDay } from './schedule';
 
 const SCHEDULE_URL = 'https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/data/kyiv-region.json';
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 interface ScheduleData {
   fact: {
@@ -10,44 +9,40 @@ interface ScheduleData {
   };
 }
 
-interface CacheRow {
-  data: string;
-  fetched_at: number;
-}
+const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' });
 
-export async function getCachedSchedule(db: D1Database): Promise<ScheduleData | null> {
-  const row = await db.prepare('SELECT data, fetched_at FROM schedule_cache WHERE id = 1').first<CacheRow>();
+/**
+ * Fetch schedule from external API and upsert all available days
+ * into the schedule_days table. Called from cron every 5 minutes.
+ */
+export async function refreshScheduleCache(db: D1Database, group: string): Promise<void> {
+  const resp = await fetch(SCHEDULE_URL);
+  if (!resp.ok) return;
 
-  if (row && Date.now() - row.fetched_at < CACHE_TTL_MS) {
-    try {
-      return JSON.parse(row.data) as ScheduleData;
-    } catch {
-      // corrupted cache, re-fetch
-    }
-  }
+  const data: ScheduleData = await resp.json();
+  const days = data.fact.data;
+  const now = Date.now();
 
-  try {
-    const resp = await fetch(SCHEDULE_URL);
-    if (!resp.ok) return null;
-    const text = await resp.text();
-    const data: ScheduleData = JSON.parse(text);
+  for (const dayKey of Object.keys(days)) {
+    if (!days[dayKey][group]) continue;
+
+    const slots = parseDay(days[dayKey][group]);
+    const ts = Number(dayKey);
+    const date = dateFmt.format(new Date(ts * 1000));
 
     await db
       .prepare(
-        'INSERT INTO schedule_cache (id, data, fetched_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, fetched_at = excluded.fetched_at'
+        'INSERT INTO schedule_days (date, group_name, slots, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(date, group_name) DO UPDATE SET slots = excluded.slots, updated_at = excluded.updated_at'
       )
-      .bind(text, Date.now())
+      .bind(date, group, JSON.stringify(slots), now)
       .run();
-
-    return data;
-  } catch {
-    return null;
   }
 }
 
 /**
- * Returns a Map from YYYY-MM-DD (Kyiv date) to 48 boolean slots for each day
- * in the range [weekStartMs, weekEndMs).
+ * Returns a Map from YYYY-MM-DD (Kyiv date) to 48 boolean slots
+ * for each day in the range [weekStartMs, weekEndMs).
+ * Reads from the schedule_days table (historical data).
  */
 export async function getScheduleForWeek(
   db: D1Database,
@@ -56,24 +51,27 @@ export async function getScheduleForWeek(
   weekEndMs: number
 ): Promise<Map<string, boolean[]>> {
   const result = new Map<string, boolean[]>();
-  const data = await getCachedSchedule(db);
-  if (!data) return result;
 
-  const days = data.fact.data;
-  const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' });
-
-  // Build set of Kyiv dates we need
-  const neededDates = new Set<string>();
+  const dates: string[] = [];
   for (let ms = weekStartMs; ms < weekEndMs; ms += 86400000) {
-    neededDates.add(dateFmt.format(new Date(ms)));
+    dates.push(dateFmt.format(new Date(ms)));
   }
 
-  // Iterate all day keys in schedule data (unix timestamps)
-  for (const dayKey of Object.keys(days)) {
-    const ts = Number(dayKey) * 1000; // schedule keys are in seconds
-    const kyivDate = dateFmt.format(new Date(ts));
-    if (neededDates.has(kyivDate) && days[dayKey][group]) {
-      result.set(kyivDate, parseDay(days[dayKey][group]));
+  if (dates.length === 0) return result;
+
+  const placeholders = dates.map(() => '?').join(',');
+  const rows = await db
+    .prepare(
+      `SELECT date, slots FROM schedule_days WHERE group_name = ? AND date IN (${placeholders})`
+    )
+    .bind(group, ...dates)
+    .all<{ date: string; slots: string }>();
+
+  for (const row of rows.results) {
+    try {
+      result.set(row.date, JSON.parse(row.slots));
+    } catch {
+      // skip corrupted rows
     }
   }
 

@@ -35,6 +35,14 @@ CREATE TABLE IF NOT EXISTS schedule_cache (
   fetched_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS schedule_days (
+  date TEXT NOT NULL,
+  group_name TEXT NOT NULL,
+  slots TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (date, group_name)
+);
+
 CREATE TABLE IF NOT EXISTS telegram_chart (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   message_id INTEGER NOT NULL,
