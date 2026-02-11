@@ -1,19 +1,11 @@
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY,
-  key TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   group_name TEXT DEFAULT '',
   status TEXT DEFAULT 'unknown',
   last_ping INTEGER,
   last_status_change INTEGER,
   created_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS pings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  device_id TEXT NOT NULL,
-  timestamp INTEGER NOT NULL,
-  FOREIGN KEY (device_id) REFERENCES devices(id)
 );
 
 CREATE TABLE IF NOT EXISTS outages (
@@ -25,6 +17,19 @@ CREATE TABLE IF NOT EXISTS outages (
   FOREIGN KEY (device_id) REFERENCES devices(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_pings_device_time ON pings(device_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_outages_device ON outages(device_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
+
+CREATE TABLE IF NOT EXISTS schedule_days (
+  date TEXT NOT NULL,
+  group_name TEXT NOT NULL,
+  slots TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (date, group_name)
+);
+
+CREATE TABLE IF NOT EXISTS telegram_chart (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  message_id INTEGER NOT NULL,
+  week_start INTEGER NOT NULL
+);

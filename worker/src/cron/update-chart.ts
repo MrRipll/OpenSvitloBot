@@ -8,13 +8,30 @@ import { initWasm, Resvg } from '@resvg/resvg-wasm';
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 
 let wasmReady = false;
+let fontData: Uint8Array | null = null;
+
+const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.ttf';
+
+async function loadFont(): Promise<Uint8Array> {
+  if (fontData) return fontData;
+  const resp = await fetch(FONT_URL);
+  fontData = new Uint8Array(await resp.arrayBuffer());
+  return fontData;
+}
 
 async function svgToPng(svg: string): Promise<Uint8Array> {
   if (!wasmReady) {
     await initWasm(resvgWasm);
     wasmReady = true;
   }
-  const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 680 } });
+  const font = await loadFont();
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: 'width', value: 680 },
+    font: {
+      fontBuffers: [font],
+      defaultFontFamily: 'Inter',
+    },
+  });
   const rendered = resvg.render();
   return rendered.asPng();
 }

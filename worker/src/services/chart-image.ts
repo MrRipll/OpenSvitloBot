@@ -169,8 +169,8 @@ export function buildWeeklyChartSVG(data: ChartData): string {
 
   // Title
   const titleY = TOP_PAD + 20;
-  p.push(`<text x="${W / 2}" y="${titleY}" text-anchor="middle" fill="${C.text}" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">${esc(`Відключення за тиждень ${data.weekLabel}`)}</text>`);
-  p.push(`<text x="${W / 2}" y="${titleY + 16}" text-anchor="middle" fill="${C.muted}" font-family="Arial,Helvetica,sans-serif" font-size="11">Група: ${esc(data.group)}</text>`);
+  p.push(`<text x="${W / 2}" y="${titleY}" text-anchor="middle" fill="${C.text}" font-family="Inter,Arial,sans-serif" font-size="16" font-weight="700">${esc(`Відключення за тиждень ${data.weekLabel}`)}</text>`);
+  p.push(`<text x="${W / 2}" y="${titleY + 16}" text-anchor="middle" fill="${C.muted}" font-family="Inter,Arial,sans-serif" font-size="11">Група: ${esc(data.group)}</text>`);
 
   const chartTop = TOP_PAD + TITLE_H;
   const axisY = chartTop + 7 * DAY_H;
@@ -207,8 +207,8 @@ export function buildWeeklyChartSVG(data: ChartData): string {
     // Day label
     const labelColor = day.isToday ? C.accent : (day.isFuture ? C.dimmed : C.text);
     const labelWeight = day.isToday ? '700' : '600';
-    p.push(`<text x="${LABEL_W - 6}" y="${rowY + DAY_PAD + 13}" text-anchor="end" fill="${labelColor}" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="${labelWeight}">${esc(day.dayLabel)}</text>`);
-    p.push(`<text x="${LABEL_W - 6}" y="${rowY + DAY_PAD + 26}" text-anchor="end" fill="${C.dimmed}" font-family="Arial,Helvetica,sans-serif" font-size="9.5">${esc(day.dayDate)}</text>`);
+    p.push(`<text x="${LABEL_W - 6}" y="${rowY + DAY_PAD + 13}" text-anchor="end" fill="${labelColor}" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="${labelWeight}">${esc(day.dayLabel)}</text>`);
+    p.push(`<text x="${LABEL_W - 6}" y="${rowY + DAY_PAD + 26}" text-anchor="end" fill="${C.dimmed}" font-family="Inter,Arial,sans-serif" font-size="9.5">${esc(day.dayDate)}</text>`);
 
     // ── Top bar: Actual data ──
     const actualY = rowY + DAY_PAD;
@@ -280,7 +280,7 @@ export function buildWeeklyChartSVG(data: ChartData): string {
       const actualOnH = Math.max(0, Math.round((dayEnd - outageH) * 10) / 10);
 
       // Actual ON hours
-      p.push(`<text x="${smR}" y="${actualY + 12}" text-anchor="end" fill="${C.summaryOn}" font-family="Arial,Helvetica,sans-serif" font-size="10" font-weight="700">${fmtHours(actualOnH)}</text>`);
+      p.push(`<text x="${smR}" y="${actualY + 12}" text-anchor="end" fill="${C.summaryOn}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700">${fmtHours(actualOnH)}</text>`);
 
       if (hasSchedule) {
         // Separator line
@@ -294,13 +294,13 @@ export function buildWeeklyChartSVG(data: ChartData): string {
           expOnH += Math.min(0.5, dayEnd - sh) * (day.schedule[s] ? 1 : 0);
         }
         expOnH = Math.round(expOnH * 10) / 10;
-        p.push(`<text x="${smR}" y="${actualY + 26}" text-anchor="end" fill="${C.summaryExp}" font-family="Arial,Helvetica,sans-serif" font-size="9.5">${fmtHours(expOnH)}</text>`);
+        p.push(`<text x="${smR}" y="${actualY + 26}" text-anchor="end" fill="${C.summaryExp}" font-family="Inter,Arial,sans-serif" font-size="9.5">${fmtHours(expOnH)}</text>`);
 
         // Difference
         const diff = Math.round((actualOnH - expOnH) * 10) / 10;
         const dc = diff > 0 ? C.diffPos : (diff < 0 ? C.diffNeg : C.muted);
         const ds = diff > 0 ? '+' : (diff < 0 ? '-' : '');
-        p.push(`<text x="${smR}" y="${actualY + 36}" text-anchor="end" fill="${dc}" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="600">${ds}${fmtHours(Math.abs(diff))}</text>`);
+        p.push(`<text x="${smR}" y="${actualY + 36}" text-anchor="end" fill="${dc}" font-family="Inter,Arial,sans-serif" font-size="9" font-weight="600">${ds}${fmtHours(Math.abs(diff))}</text>`);
       }
     }
   }
@@ -316,7 +316,7 @@ export function buildWeeklyChartSVG(data: ChartData): string {
     const x = hourToX(h);
     if (h % 4 === 0) {
       p.push(`<line x1="${x}" y1="${tickY}" x2="${x}" y2="${tickY + 5}" stroke="${C.muted}" stroke-width="1"/>`);
-      p.push(`<text x="${x}" y="${tickY + 16}" text-anchor="middle" fill="${C.muted}" font-family="Arial,Helvetica,sans-serif" font-size="10">${h}</text>`);
+      p.push(`<text x="${x}" y="${tickY + 16}" text-anchor="middle" fill="${C.muted}" font-family="Inter,Arial,sans-serif" font-size="10">${h}</text>`);
     } else {
       p.push(`<line x1="${x}" y1="${tickY}" x2="${x}" y2="${tickY + 3}" stroke="${C.dimmed}" stroke-width="0.5"/>`);
     }
@@ -333,7 +333,7 @@ export function buildWeeklyChartSVG(data: ChartData): string {
   let legX = barLeft;
   for (const item of legItems) {
     p.push(`<rect x="${legX}" y="${legY}" width="10" height="10" rx="2" fill="${item.color}"/>`);
-    p.push(`<text x="${legX + 14}" y="${legY + 9}" fill="${C.muted}" font-family="Arial,Helvetica,sans-serif" font-size="9.5">${esc(item.label)}</text>`);
+    p.push(`<text x="${legX + 14}" y="${legY + 9}" fill="${C.muted}" font-family="Inter,Arial,sans-serif" font-size="9.5">${esc(item.label)}</text>`);
     legX += 14 + item.label.length * 5.8 + 14;
   }
 
@@ -344,8 +344,8 @@ export function buildWeeklyChartSVG(data: ChartData): string {
   const col1 = PAD_X + 8;
   const col2 = W / 2 + 8;
   const lineH = 15;
-  const sFont = `font-family="Arial,Helvetica,sans-serif" font-size="10"`;
-  const bFont = `font-family="Arial,Helvetica,sans-serif" font-size="10" font-weight="700"`;
+  const sFont = `font-family="Inter,Arial,sans-serif" font-size="10"`;
+  const bFont = `font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700"`;
   const upPct = Math.round((stats.totalPowerOnHours / Math.max(stats.elapsedHours, 1)) * 1000) / 10;
 
   const statLines: [number, string, string][] = [
