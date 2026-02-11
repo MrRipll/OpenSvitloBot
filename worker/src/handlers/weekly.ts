@@ -38,7 +38,8 @@ function getWeekBounds(now: Date): { weekStartMs: number; weekEndMs: number; wee
   const mondayMs = todayMs - (p.dow - 1) * 86400000;
   const sundayMs = mondayMs + 7 * 86400000;
 
-  const kyivOffsetMs = now.getTime() - todayMs - p.hours * 3600000 - p.minutes * 60000;
+  const nowFloored = Math.floor(now.getTime() / 60000) * 60000;
+  const kyivOffsetMs = nowFloored - todayMs - p.hours * 3600000 - p.minutes * 60000;
 
   const mondayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date(mondayMs));
   const sundayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date(sundayMs - 86400000));

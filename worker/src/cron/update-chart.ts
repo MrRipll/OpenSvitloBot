@@ -143,7 +143,7 @@ async function buildChart(env: Env, refDate: Date): Promise<ChartResult | null> 
 export async function updateWeeklyChart(env: Env): Promise<void> {
   const now = new Date();
   const { minutes } = getKyivParts(now);
-  if (minutes % 10 >= 2) return;
+  if (minutes % 10 !== 0) return;
 
   const { weekStartMs } = getWeekBounds(now);
   const chart = await buildChart(env, now);
