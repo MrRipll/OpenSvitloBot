@@ -7,28 +7,22 @@ import { initWasm, Resvg } from '@resvg/resvg-wasm';
 // @ts-expect-error — wasm asset import
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 
+// @ts-expect-error — binary asset import
+import fontLatin from '../../assets/inter-latin-400.ttf';
+// @ts-expect-error — binary asset import
+import fontCyrillic from '../../assets/inter-cyrillic-400.ttf';
+
 let wasmReady = false;
-let fontData: Uint8Array | null = null;
-
-const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.ttf';
-
-async function loadFont(): Promise<Uint8Array> {
-  if (fontData) return fontData;
-  const resp = await fetch(FONT_URL);
-  fontData = new Uint8Array(await resp.arrayBuffer());
-  return fontData;
-}
 
 async function svgToPng(svg: string): Promise<Uint8Array> {
   if (!wasmReady) {
     await initWasm(resvgWasm);
     wasmReady = true;
   }
-  const font = await loadFont();
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: 680 },
     font: {
-      fontBuffers: [font],
+      fontBuffers: [new Uint8Array(fontLatin), new Uint8Array(fontCyrillic)],
       defaultFontFamily: 'Inter',
     },
   });
@@ -160,13 +154,15 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
   const { weekStartMs } = getWeekBounds(now);
   const row = await env.DB.prepare('SELECT message_id, week_start FROM telegram_chart WHERE id = 1').first<ChartRow>();
 
-  // Week changed — finalize old week's chart, then send new
+  // Week changed — finalize old week's chart once, then clear row
   if (row && row.week_start !== weekStartMs) {
     const prevSunday = new Date(row.week_start + 7 * 86400000 - 60000);
     const finalChart = await buildChart(env, prevSunday, true);
     if (finalChart) {
       await editMessageMediaBuffer(env, row.message_id, finalChart.pngData, finalChart.caption);
     }
+    // Delete row so we don't re-finalize on next run
+    await env.DB.prepare('DELETE FROM telegram_chart WHERE id = 1').run();
   }
 
   // Edit existing message for current week
@@ -178,7 +174,7 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
     return;
   }
 
-  // No message for this week — send new
+  // No message for this week (first run or new week) — send new
   const chart = await buildChart(env, now, false);
   if (!chart) return;
 

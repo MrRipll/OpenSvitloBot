@@ -10,6 +10,11 @@ binding = "DB"
 database_name = "opensvitlobot-db"
 database_id = "24b99f79-e8a8-4676-b9ee-0de6ca60c9c0"
 
+[[rules]]
+type = "Data"
+globs = ["**/*.ttf"]
+fallthrough = false
+
 [vars]
 CORS_ORIGIN = "*"
 OUTAGE_GROUP = "GPV6.2"
