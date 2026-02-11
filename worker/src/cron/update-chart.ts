@@ -20,7 +20,7 @@ async function svgToPng(svg: string): Promise<Uint8Array> {
     wasmReady = true;
   }
   const resvg = new Resvg(svg, {
-    fitTo: { mode: 'width', value: 680 },
+    fitTo: { mode: 'width', value: 1440 },
     font: {
       fontBuffers: [new Uint8Array(fontLatin), new Uint8Array(fontCyrillic)],
       defaultFontFamily: 'Inter',
