@@ -50,11 +50,7 @@ interface ChartResult {
   weekStartMs: number;
 }
 
-/**
- * Build chart PNG + caption for the week containing `refDate`.
- * If `complete` is true, all 7 days are rendered as past (no "today" / future).
- */
-async function buildChart(env: Env, refDate: Date, complete: boolean): Promise<ChartResult | null> {
+async function buildChart(env: Env, refDate: Date): Promise<ChartResult | null> {
   const p = getKyivParts(refDate);
   const refDateStr = kyivDateStr(refDate);
   const { weekStartMs, weekEndMs, weekStartDate } = getWeekBounds(refDate);
@@ -79,8 +75,8 @@ async function buildChart(env: Env, refDate: Date, complete: boolean): Promise<C
     const dayStartMs = weekStartMs + i * 86400000;
     const dayEndMs = dayStartMs + 86400000;
 
-    const isToday = !complete && dateStr === refDateStr;
-    const isFuture = !complete && dateStr > refDateStr;
+    const isToday = dateStr === refDateStr;
+    const isFuture = dateStr > refDateStr;
 
     const outages: { startHour: number; endHour: number }[] = [];
     if (!isFuture) {
@@ -146,38 +142,22 @@ async function buildChart(env: Env, refDate: Date, complete: boolean): Promise<C
 
 export async function updateWeeklyChart(env: Env): Promise<void> {
   const now = new Date();
-  const p = getKyivParts(now);
-
-  const isTenMin = p.minutes % 10 < 2;
-  if (!isTenMin) return;
+  const { minutes } = getKyivParts(now);
+  if (minutes % 10 >= 2) return;
 
   const { weekStartMs } = getWeekBounds(now);
+  const chart = await buildChart(env, now);
+  if (!chart) return;
+
   const row = await env.DB.prepare('SELECT message_id, week_start FROM telegram_chart WHERE id = 1').first<ChartRow>();
 
-  // Week changed — finalize old week's chart once, then clear row
-  if (row && row.week_start !== weekStartMs) {
-    const prevSunday = new Date(row.week_start + 7 * 86400000 - 60000);
-    const finalChart = await buildChart(env, prevSunday, true);
-    if (finalChart) {
-      await editMessageMediaBuffer(env, row.message_id, finalChart.pngData, finalChart.caption);
-    }
-    // Delete row so we don't re-finalize on next run
-    await env.DB.prepare('DELETE FROM telegram_chart WHERE id = 1').run();
-  }
-
-  // Edit existing message for current week
+  // Same week — just edit
   if (row && row.week_start === weekStartMs) {
-    const chart = await buildChart(env, now, false);
-    if (chart) {
-      await editMessageMediaBuffer(env, row.message_id, chart.pngData, chart.caption);
-    }
+    await editMessageMediaBuffer(env, row.message_id, chart.pngData, chart.caption);
     return;
   }
 
-  // No message for this week (first run or new week) — send new
-  const chart = await buildChart(env, now, false);
-  if (!chart) return;
-
+  // New week or first run — send new message
   const messageId = await sendPhotoBufferGetId(env, chart.pngData, chart.caption);
   if (messageId) {
     await env.DB.prepare(

@@ -99,7 +99,7 @@ void setup() {
 
     if (tryConnect(CONNECT_TIMEOUT)) {
       Serial.printf("Connected! IP: %s\n", WiFi.localIP().toString().c_str());
-      digitalWrite(LED_PIN, LOW);
+      digitalWrite(LED_PIN, HIGH); // LED off — all good
       return;
     }
     Serial.println("Connection failed. Starting setup portal...");
@@ -126,7 +126,7 @@ void loop() {
       WiFi.begin(wifiSSID.c_str(), wifiPass.c_str());
     }
 
-    blinkLED(500);
+    blinkLED(1000); // Slow blink — waiting for config
     return;
   }
 
@@ -138,13 +138,14 @@ void loop() {
       startPortal();
       return;
     }
+    digitalWrite(LED_PIN, HIGH); // LED off after reconnect
   }
 
   unsigned long now = millis();
   if (now - lastPing >= PING_INTERVAL || lastPing == 0) {
     lastPing = now;
-    bool success = sendPing();
-    digitalWrite(LED_PIN, success ? LOW : HIGH);
+    sendPing();
+    digitalWrite(LED_PIN, HIGH); // LED off — all good
   }
 
   delay(100);
@@ -159,7 +160,7 @@ bool tryConnect(unsigned long timeout) {
   while (WiFi.status() != WL_CONNECTED && millis() - start < timeout) {
     delay(500);
     Serial.print(".");
-    blinkLED(250);
+    blinkLED(150); // Fast blink — connecting
   }
   Serial.println();
 
@@ -194,7 +195,7 @@ void stopPortal() {
   webServer.stop();
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
-  digitalWrite(LED_PIN, LOW);
+  digitalWrite(LED_PIN, HIGH); // LED off — connected
 }
 
 void handleRoot() {
