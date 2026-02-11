@@ -111,9 +111,18 @@ export function getNextScheduledOutage(schedule: HalfHourSlots[], now: Date): { 
 
   const allSlots = [...(schedule[0] || []), ...(schedule[1] || [])];
 
-  // Find next OFF slot after current position
+  // If currently in a scheduled OFF block, skip past it first
+  // to find the next distinct outage (not the current one)
+  let searchFrom = currentSlot + 1;
+  if (!allSlots[currentSlot]) {
+    while (searchFrom < allSlots.length && !allSlots[searchFrom]) {
+      searchFrom++;
+    }
+  }
+
+  // Find next OFF slot (start of next outage)
   let start = -1;
-  for (let i = currentSlot + 1; i < allSlots.length; i++) {
+  for (let i = searchFrom; i < allSlots.length; i++) {
     if (!allSlots[i]) {
       start = i;
       break;
