@@ -174,13 +174,13 @@ export function formatRecoveryMessage(
   nextOutage: { start: string; end: string } | null
 ): string {
   const lines = [
-    `🟢 ${kyivTimeStr(time)} Світло з'явилося`,
+    `<b>🟢 ${kyivTimeStr(time)} Світло з'явилося</b>`,
   ];
   if (offlineDurationMs > 0) {
     lines.push(`🕓 Його не було ${formatDuration(offlineDurationMs)}`);
   }
   if (nextOutage) {
-    lines.push(`🗓 Наступне планове: ${nextOutage.start} - ${nextOutage.end}`);
+    lines.push(`🗓 Наступне планове: <b>${nextOutage.start} - ${nextOutage.end}</b>`);
   }
   return lines.join('\n');
 }
