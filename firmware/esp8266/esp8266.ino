@@ -14,7 +14,7 @@
 
 #define LED_PIN LED_BUILTIN
 #define EEPROM_SIZE 512
-#define PING_INTERVAL 60000      // 60 seconds
+#define PING_INTERVAL 15000      // 15 seconds
 #define RETRY_COUNT 3
 #define RETRY_DELAY 5000         // 5 seconds
 #define CONNECT_TIMEOUT 180000   // 3 minutes
@@ -47,22 +47,23 @@ const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
 <title>OpenSvitloBot Setup</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:1rem;min-height:100vh;display:flex;align-items:center;justify-content:center}
+body{font-family:-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;padding:1rem;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .c{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.5rem;max-width:400px;width:100%}
 h1{font-size:1.25rem;margin-bottom:.25rem}
 .s{color:#94a3b8;font-size:.85rem;margin-bottom:1.25rem}
-label{display:block;font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;margin-top:.75rem}
-input{width:100%;padding:.5rem .75rem;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:.9rem}
+label{display:block;font-size:.85rem;color:#94a3b8;margin-bottom:.25rem;margin-top:1rem}
+input{width:100%;padding:.75rem;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:16px;-webkit-appearance:none}
 input:focus{outline:none;border-color:#3b82f6}
-button{width:100%;margin-top:1.25rem;padding:.75rem;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}
+button{width:100%;margin-top:1.5rem;padding:.875rem;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;-webkit-appearance:none}
+button:active{background:#2563eb}
 </style></head><body>
 <div class="c"><h1>OpenSvitloBot Setup</h1>
 <p class="s">Connect this device to your WiFi network.</p>
-<form action="/save" method="POST">
-<label>WiFi Network (SSID)</label><input name="ssid" required>
+<form action="/save" method="POST" autocomplete="off">
+<label>WiFi Network (SSID)</label><input name="ssid" required autocorrect="off" autocapitalize="off">
 <label>WiFi Password</label><input name="pass" type="password">
-<label>Worker URL</label><input name="url" placeholder="https://opensvitlobot.workers.dev" required>
-<label>API Key</label><input name="key" required>
+<label>Worker URL</label><input name="url" placeholder="https://opensvitlobot.workers.dev" required autocorrect="off" autocapitalize="off" inputmode="url">
+<label>API Key</label><input name="key" required autocorrect="off" autocapitalize="off">
 <button type="submit">Save &amp; Connect</button>
 </form></div></body></html>
 )rawliteral";

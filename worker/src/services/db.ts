@@ -53,12 +53,12 @@ export async function createOutage(db: D1Database, deviceId: string, startTime: 
 }
 
 export async function closeOutage(db: D1Database, deviceId: string, endTime: number): Promise<void> {
-  const outage = await db
-    .prepare('SELECT * FROM outages WHERE device_id = ? AND end_time IS NULL ORDER BY start_time DESC LIMIT 1')
+  const outages = await db
+    .prepare('SELECT * FROM outages WHERE device_id = ? AND end_time IS NULL ORDER BY start_time')
     .bind(deviceId)
-    .first<Outage>();
+    .all<Outage>();
 
-  if (outage) {
+  for (const outage of outages.results) {
     const duration = Math.floor((endTime - outage.start_time) / 1000);
     await db
       .prepare('UPDATE outages SET end_time = ?, duration = ? WHERE id = ?')
