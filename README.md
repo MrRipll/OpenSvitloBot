@@ -7,13 +7,13 @@ Power outage monitoring system for Ukrainian households. Cloudflare Workers + D1
 ## How It Works
 
 ```
-ESP Device ──[HTTPS ping every 60s]──► Cloudflare Worker
+ESP Device ──[HTTPS ping every 15s]──► Cloudflare Worker
                                             │
                                        Store in D1 DB
                                             │
                                   Cron check every 1 min
                                             │
-                                  No ping for 5 min?
+                                  No ping for 45s?
                                        ╱        ╲
                                     YES           NO
                                      │             │
@@ -35,9 +35,9 @@ When a device comes back online, you get a recovery notification with the outage
 | `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | Send a message to your bot, then check `https://api.telegram.org/bot<TOKEN>/getUpdates` |
 
-3. Push to `master` — or run **Deploy Worker** manually from Actions
+3. Push to `main` — or run **Deploy Worker** manually from Actions
 
-D1 database is created automatically on first deploy. Every push to `master` that touches `worker/` triggers a redeploy.
+D1 database is created automatically on first deploy. Every push to `main` that touches `worker/` triggers a redeploy.
 
 ### Verify
 
@@ -50,12 +50,12 @@ The device is auto-created on first ping. ESP firmware should ping `/ping?key=YO
 ### Flash an ESP device
 
 **Option A: Web Installer** (no IDE needed)
-- Visit the [Web Installer](https://MrRipll.github.io/OpenSvitloBot/firmware/web-installer) in Chrome/Edge
+- Visit the [Web Installer](https://mrripll.github.io/OpenSvitloBot/) in Chrome/Edge
 - Select your board, connect via USB, flash
 - Configure via Serial Monitor (115200 baud)
 
 **Option B: Arduino IDE**
-- Open `firmware/esp8266/opensvitlobot.ino` or `firmware/esp32/opensvitlobot.ino`
+- Open `firmware/esp8266/esp8266.ino` or `firmware/esp32/esp32.ino`
 - Upload to your board
 - Configure via Serial Monitor
 
