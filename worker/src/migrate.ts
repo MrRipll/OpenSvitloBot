@@ -44,11 +44,18 @@ CREATE TABLE IF NOT EXISTS public_cache (
   dirty INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS excluded_periods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  start_time INTEGER NOT NULL,
+  end_time INTEGER NOT NULL,
+  reason TEXT
+);
 `;
 
 // Succeeds only on an up-to-date schema. Any schema change (new table, index or column)
 // must update this probe to touch the newest object, or ensureSchema will skip it.
-const SCHEMA_PROBE = 'SELECT dirty FROM public_cache LIMIT 0';
+const SCHEMA_PROBE = 'SELECT reason FROM excluded_periods LIMIT 0';
 
 // Columns added after the initial release. ALTER fails if the column exists — that's fine.
 const ALTERS = [

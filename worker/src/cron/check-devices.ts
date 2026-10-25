@@ -1,5 +1,5 @@
 import { Env } from '../types';
-import { getStaleOnlineDevices, updateDeviceStatus, createOutage } from '../services/db';
+import { getStaleOnlineDevices, markOfflineAtomic } from '../services/db';
 import { sendMessage, formatOutageMessage } from '../services/telegram';
 import { fetchSchedule, getScheduledRestoration } from '../services/schedule';
 import { markPublicHistoryDirty } from '../services/public-history';
@@ -10,11 +10,11 @@ export async function checkDevices(env: Env): Promise<void> {
   const staleDevices = await getStaleOnlineDevices(env.DB, STALE_THRESHOLD_MS);
 
   for (const device of staleDevices) {
-    const now = Date.now();
-    const outageTime = device.last_ping ?? now;
+    if (device.last_ping === null) continue;
+    const outageTime = device.last_ping;
 
-    await updateDeviceStatus(env.DB, device.id, 'offline', outageTime);
-    await createOutage(env.DB, device.id, outageTime);
+    // Skips if a ping raced in after the stale check, so no ghost outages or duplicate alerts.
+    if (!(await markOfflineAtomic(env.DB, device.id, outageTime))) continue;
     await markPublicHistoryDirty(env.DB);
 
     const onlineDurationMs = device.last_status_change ? outageTime - device.last_status_change : 0;

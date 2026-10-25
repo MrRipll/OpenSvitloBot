@@ -12,7 +12,8 @@ import { Env } from '../types';
  *   { v, group, generatedAt, trackingSince,
  *     outages: [[startSec, endSec | null], ...],
  *     schedule: { "YYYY-MM-DD": "48 chars, 1 = power on, 0 = off" },
- *     preset: ["48 chars per weekday Mon..Sun, 1 = on, 0 = off, 2 = possible outage"] | null }
+ *     preset: ["48 chars per weekday Mon..Sun, 1 = on, 0 = off, 2 = possible outage"] | null,
+ *     excluded: [[startSec, endSec], ...] — no reliable data (sensor down etc.), ignored by stats }
  */
 
 const HISTORY_KEY = 'history';
@@ -44,11 +45,12 @@ export async function refreshPublicHistory(env: Env): Promise<void> {
   const row = await env.DB.prepare('SELECT dirty FROM public_cache WHERE key = ?').bind(HISTORY_KEY).first<{ dirty: number }>();
   if (row && !row.dirty) return;
 
-  const [outages, schedule, preset, device] = await Promise.all([
+  const [outages, schedule, preset, device, excluded] = await Promise.all([
     env.DB.prepare('SELECT start_time, end_time FROM outages ORDER BY start_time').all<{ start_time: number; end_time: number | null }>(),
     env.DB.prepare('SELECT date, slots FROM schedule_days WHERE group_name = ? ORDER BY date').bind(env.OUTAGE_GROUP).all<{ date: string; slots: string }>(),
     env.DB.prepare('SELECT body FROM public_cache WHERE key = ?').bind(PRESET_KEY).first<{ body: string }>(),
     env.DB.prepare('SELECT created_at FROM devices ORDER BY created_at LIMIT 1').first<{ created_at: number }>(),
+    env.DB.prepare('SELECT start_time, end_time FROM excluded_periods ORDER BY start_time').all<{ start_time: number; end_time: number }>(),
   ]);
 
   const sched: Record<string, string> = {};
@@ -68,6 +70,7 @@ export async function refreshPublicHistory(env: Env): Promise<void> {
     outages: outages.results.map(o => [Math.round(o.start_time / 1000), o.end_time === null ? null : Math.round(o.end_time / 1000)]),
     schedule: sched,
     preset: preset?.body ? JSON.parse(preset.body) : null,
+    excluded: excluded.results.map(e => [Math.round(e.start_time / 1000), Math.round(e.end_time / 1000)]),
   });
 
   await env.DB.prepare(

@@ -160,7 +160,7 @@ a { color: var(--accent); }
 /* ── Timelines ── */
 .tl { display: grid; gap: 4px; }
 .tl-row {
-  display: grid; grid-template-columns: 74px minmax(0, 1fr) 92px; align-items: center; gap: 10px;
+  display: grid; grid-template-columns: 74px minmax(0, 1fr) 112px; align-items: center; gap: 10px;
   padding: 6px 0;
 }
 .tl-row.today { background: var(--accent-bg); border-radius: 10px; margin: 0 -8px; padding: 6px 8px; }
@@ -184,6 +184,7 @@ a { color: var(--accent); }
 .tl-bar .seg.off { background: var(--off); }
 .tl-bar .seg.plan { background: repeating-linear-gradient(135deg, var(--planned) 0 2.5px, var(--planned-bg) 2.5px 6px); }
 .tl-bar .seg.maybe { background: repeating-linear-gradient(135deg, var(--maybe) 0 2.5px, var(--maybe-bg) 2.5px 6px); }
+.tl-bar .seg.nodata { background: repeating-linear-gradient(45deg, var(--track) 0 4px, var(--surface) 4px 8px); border-radius: 3px; }
 .tl-bar .seg.sched { top: 29px; height: 4px; border-radius: 2px; background: var(--planned); }
 .tl-bar::after {
   content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 22px; pointer-events: none; z-index: 1;
@@ -194,7 +195,7 @@ a { color: var(--accent); }
 .tl-bar .now::before { content: ""; position: absolute; top: -3px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .tl-val { text-align: right; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
 .tl-val small { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); white-space: normal; line-height: 1.25; }
-.tl-axis { position: relative; height: 18px; margin-left: 84px; margin-right: 102px; }
+.tl-axis { position: relative; height: 18px; margin-left: 84px; margin-right: 122px; }
 @media (max-width: 520px) { .tl-axis { margin-left: 64px; margin-right: 92px; } }
 .tl-axis span {
   position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted);

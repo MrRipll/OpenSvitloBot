@@ -87,6 +87,31 @@
     }
     return t;
   }
+  function mergeIv(list) {
+    const out = [];
+    for (const [s, e] of [...list].sort((x, y) => x[0] - y[0])) {
+      const l = out[out.length - 1];
+      if (l && s <= l[1]) l[1] = Math.max(l[1], e); else out.push([s, e]);
+    }
+    return out;
+  }
+  /** Sorted intervals minus sorted cut-outs. */
+  function subtractIv(iv, cut) {
+    const out = [];
+    for (const [s0, e0] of iv) {
+      let s = s0;
+      for (const [cs, ce] of cut) {
+        if (ce <= s || cs >= e0) continue;
+        if (cs > s) out.push([s, cs]);
+        s = Math.max(s, ce);
+      }
+      if (s < e0) out.push([s, e0]);
+    }
+    return out;
+  }
+  /** Observed (not excluded) time inside [a, b). */
+  const obsIn = (m, a, b) => Math.max(0, b - a - sumIn(m.excl, a, b));
+
   /** Runs of `ch` in a 48-slot day string, as [start, end) local ms. */
   function runs(str, ch, ds) {
     const out = [];
@@ -105,7 +130,11 @@
     const live = raw.live || {};
     const nowL = L(Date.now());
 
-    const outages = (h.outages || []).map(([s, e]) => ({ s: L(s * 1000), e: e == null ? null : L(e * 1000) }));
+    // Periods without reliable data (sensor down etc.): neither "on" nor "off" in any stat.
+    const excl = mergeIv((h.excluded || []).map(([s, e]) => [L(s * 1000), L(e * 1000)]).filter(([s, e]) => e > s));
+    const outages = (h.outages || [])
+      .map(([s, e]) => ({ s: L(s * 1000), e: e == null ? null : L(e * 1000) }))
+      .filter(o => !excl.some(([s, e]) => o.s >= s && o.s < e));
     outages.sort((a, b) => a.s - b.s);
     // The cached history may lag a few minutes behind the live status — reconcile.
     const last = outages[outages.length - 1];
@@ -115,7 +144,7 @@
     } else if (live.status === 'online' && last && last.e === null && live.since) {
       last.e = Math.max(last.s, L(live.since));
     }
-    const iv = outages.map(o => [o.s, o.e ?? nowL]).filter(([s, e]) => e > s);
+    const iv = subtractIv(mergeIv(outages.map(o => [o.s, o.e ?? nowL]).filter(([s, e]) => e > s)), excl);
 
     const trackStart = h.trackingSince ? L(h.trackingSince) : iv.length ? iv[0][0] : nowL;
 
@@ -134,7 +163,7 @@
     }
 
     return {
-      raw, live, nowL, outages, iv, trackStart, sched, blocks, cover,
+      raw, live, nowL, outages, iv, excl, trackStart, sched, blocks, cover,
       preset: Array.isArray(h.preset) && h.preset.length === 7 ? h.preset : null,
       group: h.group || '',
       generatedAt: h.generatedAt || null,
@@ -152,7 +181,7 @@
 
   function periodStats(m, a, b) {
     const off = sumIn(m.iv, a, b);
-    const obs = Math.max(0, b - a);
+    const obs = obsIn(m, a, b);
     const list = m.outages.filter(o => o.s >= a && o.s < b);
     const durs = list.map(o => (o.e ?? m.nowL) - o.s);
     // Actual vs scheduled, only where a schedule is known.
@@ -216,7 +245,7 @@
     const off = Array.from({ length: 7 }, () => new Array(24).fill(0));
     const obs = Array.from({ length: 7 }, () => new Array(24).fill(0));
     for (let t = Math.floor(a / HOUR) * HOUR; t < b; t += HOUR) {
-      const v = Math.min(t + HOUR, b) - Math.max(t, a);
+      const v = obsIn(m, Math.max(t, a), Math.min(t + HOUR, b));
       if (v > 0) obs[wdOf(t)][hourOf(t)] += v;
     }
     for (const [s0, e0] of m.iv) {
@@ -242,7 +271,7 @@
       while (oi < m.outages.length && m.outages[oi].s < ds) oi++;
       for (let j = oi; j < m.outages.length && m.outages[j].s < ds + DAY; j++) count++;
       days.push({
-        ds, key, obs: Math.max(0, b - a), off: sumIn(m.iv, a, b), count,
+        ds, key, obs: b > a ? obsIn(m, a, b) : 0, off: sumIn(m.iv, a, b), count,
         sched: str && str.length === 48 ? sumIn(runs(str, '0', ds), a, b) : null,
         schedFull: str && str.length === 48 ? sumIn(runs(str, '0', ds), ds, ds + DAY) : null,
       });
@@ -319,13 +348,19 @@
         maybe += e - s;
       }
     }
+    for (const [s, e] of m.excl) {
+      const xs = Math.max(s, ds), xe = Math.min(e, cut);
+      if (xe > xs) html += seg('nodata', xs, xe, ds, `<b>Немає даних</b> ${ddmm(s)} ${clock(s)} – ${ddmm(e)} ${clock(e, true)}<br>не враховується в статистиці`);
+    }
     if (m.nowL >= ds && m.nowL < de) {
       html += `<div class="now" style="left:${(((m.nowL - ds) / DAY) * 100).toFixed(3)}%" data-tip="Зараз ${clock(m.nowL)}"></div>`;
     }
     if (ds + DAY <= m.trackStart) html = `<div class="seg track" style="left:0;width:100%"></div>`;
 
     let val;
-    if (cut > start) {
+    if (cut > start && obsIn(m, start, cut) < MIN) {
+      val = '<span class="muted">немає даних</span>';
+    } else if (cut > start) {
       const off = sumIn(m.iv, start, cut);
       val = off >= MIN ? `${dur(off)}` : `<span class="good">без відкл.</span>`;
       if (str) val += `<small>графік ${dur(planned)}</small>`;
@@ -637,7 +672,8 @@
     if (full >= 7) facts.push(['✅', `Днів зовсім без відключень: <b>${clean}</b> з ${full} (${pct(clean / full)}).`]);
     // Total.
     const total = sumIn(m.iv, m.trackStart, nowL);
-    if (total > 0) facts.push(['⏳', `Загалом без світла <b>${durLong(total)}</b> за ${durLong(nowL - m.trackStart)} спостережень — це ${pct(total / Math.max(1, nowL - m.trackStart))} усього часу.`]);
+    const observed = obsIn(m, m.trackStart, nowL);
+    if (total > 0) facts.push(['⏳', `Загалом без світла <b>${durLong(total)}</b> за ${durLong(observed)} спостережень — це ${pct(total / Math.max(1, observed))} усього часу.`]);
     // Unplanned share for 30 days.
     const acc = accuracy(m, a30, nowL);
     if (acc.total >= 5) {
@@ -711,7 +747,7 @@
     }
     if (lo) recs.push(['Найдовше без світла', durLong(lo.d), lo.o.e === null ? `з ${longDate(lo.o.s)}, триває` : `${longDate(lo.o.s)}, ${clock(lo.o.s)}–${clock(lo.o.e, true)}`]);
     let prev = m.trackStart, ls = null;
-    for (const [s, e] of m.iv) {
+    for (const [s, e] of mergeIv([...m.iv, ...m.excl])) {
       if (!ls || s - prev > ls.d) ls = { d: s - prev, a: prev, b: s };
       prev = Math.max(prev, e);
     }
@@ -729,7 +765,7 @@
       recs.push(['Найгірший тиждень', dur(worst.off), `${ddmm(worst.ws)}–${ddmm(worst.ws + 6 * DAY)}`]);
     }
     recs.push(['Усього відключень', `${m.outages.length}`, `з ${longDate(m.trackStart)}`]);
-    recs.push(['Спостерігаємо', durLong(m.nowL - m.trackStart), `з ${longDate(m.trackStart)} ${new Date(m.trackStart).getUTCFullYear()}`]);
+    recs.push(['Спостерігаємо', durLong(obsIn(m, m.trackStart, m.nowL)), `з ${longDate(m.trackStart)} ${new Date(m.trackStart).getUTCFullYear()}`]);
     return `<section class="card">
       <div class="card-head"><h2>Рекорди</h2><p class="muted">за весь час</p></div>
       <div class="records">${recs.map(([h, v, s]) => `<div class="rec"><h3>${h}</h3><div class="v num">${v}</div><div class="s">${s}</div></div>`).join('')}</div>

@@ -80,6 +80,8 @@ const data = {
     outages: merged.map(([s, e]) => [Math.round(toEpoch(s) / 1000), e === null ? null : Math.round(toEpoch(e) / 1000)]),
     schedule,
     preset: presetWeek,
+    // Sensor was down: shown as "no data" and ignored by stats.
+    excluded: [[Math.round(toEpoch(today - 12 * DAY + 22 * HOUR) / 1000), Math.round(toEpoch(today - 9 * DAY + 17 * HOUR) / 1000)]],
   },
 };
 
