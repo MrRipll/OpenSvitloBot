@@ -161,8 +161,10 @@ export function unpinChatMessage(env: Env, messageId: number) {
   return callChatMethod(env, 'unpinChatMessage', { message_id: messageId });
 }
 
+const kyivTimeFmt = new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
+
 function kyivTimeStr(date: Date): string {
-  return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
+  return kyivTimeFmt.format(date);
 }
 
 function formatDuration(ms: number): string {

@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS telegram_chart (
 );
 `;
 
+// Its presence means the schema is up to date. Any schema change (new table, index or column)
+// must add a new column here or the probe above will skip it.
+const LATEST_COLUMN = 'pinned';
+
 // Columns added after the initial release. ALTER fails if the column exists — that's fine.
 const ALTERS = [
   'ALTER TABLE telegram_chart ADD COLUMN hash TEXT',
@@ -49,6 +53,16 @@ let migrated = false;
 
 export async function ensureSchema(db: D1Database): Promise<void> {
   if (migrated) return;
+
+  // Cron usually lands on a fresh isolate, so probe the newest column with one cheap
+  // query instead of re-running every CREATE/ALTER each minute.
+  try {
+    await db.prepare(`SELECT ${LATEST_COLUMN} FROM telegram_chart LIMIT 0`).run();
+    migrated = true;
+    return;
+  } catch {
+    // schema is missing or outdated — migrate below
+  }
 
   const statements = SCHEMA
     .split(';')

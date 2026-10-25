@@ -103,7 +103,19 @@ interface ChartResult {
   weekStartMs: number;
 }
 
-async function buildChart(env: Env, now: Date): Promise<ChartResult> {
+interface ChartInputs {
+  weekStartMs: number;
+  outageRows: OutageRow[];
+  device: DeviceRow | null;
+  schedule: Map<string, boolean[]>;
+  /** The chart's "now": quantized to CHART_STEP_MIN, or the last status change if more recent. */
+  refMs: number;
+}
+
+/** Bump when the chart layout/caption changes, so existing charts are re-rendered after deploy. */
+const CHART_VERSION = 2;
+
+async function loadChartInputs(env: Env, now: Date): Promise<ChartInputs> {
   const { weekStartMs, weekEndMs } = getWeekBounds(now);
 
   const [outageResult, device, schedule] = await Promise.all([
@@ -125,6 +137,19 @@ async function buildChart(env: Env, now: Date): Promise<ChartResult> {
   if (device?.last_status_change && device.last_status_change > refMs && device.last_status_change <= now.getTime()) {
     refMs = device.last_status_change;
   }
+  return { weekStartMs, outageRows, device, schedule, refMs };
+}
+
+/** Everything the picture depends on. Hashing this is far cheaper than building the SVG every minute. */
+function inputKey(env: Env, inp: ChartInputs): string {
+  return JSON.stringify([
+    CHART_VERSION, env.OUTAGE_GROUP, inp.weekStartMs, inp.refMs,
+    inp.outageRows, inp.device, [...inp.schedule.entries()],
+  ]);
+}
+
+function buildChart(env: Env, inp: ChartInputs): ChartResult {
+  const { weekStartMs, outageRows, device, schedule, refMs } = inp;
   const ref = new Date(refMs);
   const refParts = getKyivParts(ref);
   const refDateStr = kyivDateStr(ref);
@@ -251,19 +276,20 @@ async function pinChart(env: Env, messageId: number): Promise<void> {
 }
 
 export async function updateWeeklyChart(env: Env): Promise<void> {
-  const now = new Date();
-  const chart = await buildChart(env, now);
+  const inputs = await loadChartInputs(env, new Date());
 
-  // Skip the expensive PNG render + Telegram upload if nothing visible changed.
+  // Skip SVG build, PNG render and Telegram upload if none of the inputs changed.
   // The hash lives in D1 so it survives isolate restarts (cron often runs on a fresh isolate).
-  const hash = await sha256(chart.svg + chart.caption);
+  const hash = await sha256(inputKey(env, inputs));
   const row = await env.DB.prepare('SELECT message_id, week_start, hash, pinned FROM telegram_chart WHERE id = 1').first<ChartRow>();
-  const sameWeek = !!row && row.week_start === chart.weekStartMs;
+  const sameWeek = !!row && row.week_start === inputs.weekStartMs;
 
   // Also covers charts posted before pinning existed, and earlier failed pins.
   if (sameWeek && !row!.pinned) await pinChart(env, row!.message_id);
 
   if (sameWeek && row!.hash === hash) return;
+
+  const chart = buildChart(env, inputs);
 
   let png: Uint8Array;
   try {

@@ -21,5 +21,9 @@ OUTAGE_GROUP = "GPV6.2"
 
 # Workers Logs: keeps console output, exceptions and CPU time per invocation
 # (Dashboard → Workers → opensvitlobot → Logs; also queryable via the Cloudflare observability MCP).
-[observability]
+[observability.logs]
 enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false

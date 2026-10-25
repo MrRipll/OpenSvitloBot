@@ -76,8 +76,10 @@ export default {
     await ensureSchema(env.DB);
     await checkDevices(env);
 
+    // Offset from the chart's 15-minute steps (:00/:15/:30/:45) so the schedule download
+    // never lands on the same tick as a PNG render.
     const minutes = new Date().getMinutes();
-    if (minutes % 5 === 0) {
+    if (minutes % 5 === 2) {
       await refreshScheduleCache(env.DB, env.OUTAGE_GROUP);
     }
 

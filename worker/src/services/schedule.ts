@@ -29,15 +29,16 @@ function slotToTime(slotIndex: number): string {
   return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
-function getKyivTime(date: Date): { hours: number; minutes: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Kyiv',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-  }).formatToParts(date);
+const kyivTimeFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Kyiv',
+  hour: 'numeric',
+  minute: 'numeric',
+  hour12: false,
+});
 
-  const hours = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+function getKyivTime(date: Date): { hours: number; minutes: number } {
+  const parts = kyivTimeFmt.formatToParts(date);
+  const hours = parseInt(parts.find(p => p.type === 'hour')?.value || '0') % 24;
   const minutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
   return { hours, minutes };
 }
