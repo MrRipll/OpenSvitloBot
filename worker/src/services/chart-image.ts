@@ -1,371 +1,393 @@
 /**
- * Builds a weekly outage timeline SVG chart.
+ * Builds the weekly power timeline SVG that is posted to Telegram.
  *
- * Layout per day row:
- *   ┌──────────────────────────────────────┐
- *   │ ПН  ████████░░░░████████████████████ │  actual bar: green=on, red=off (only real data)
- *   │ 09.02 ▓▓▓▓░░░░▓▓▓▓░░░░▓▓▓▓░░░░▓▓▓ │  schedule bar: yellow=on, gray=off
- *   │                                -8.5г │  summary below bars
- *   └──────────────────────────────────────┘
+ *   ┌───────────────────────────────────────────────────────────┐
+ *   │ Світло за тиждень                        ● Світло є        │  header + live status pill
+ *   │ 20–26 жовтня · група GPV6.2                з 14:20 · 3 год │
+ *   │ [Зі світлом] [Без світла] [Найдовше] [Порівняно з графіком] │  KPI tiles
+ *   │      00   03   06   09   12   15   18   21   24  без світла │
+ *   │ Пн  ████████▓▓▓▓▓▓████████████████████████████   4 год 30 хв │  actual: green/red
+ *   │ 20.10 ───────▬▬▬▬▬▬▬──────────────────────────    графік 6 год │  thin strip: schedule (elapsed part)
+ *   │ ...                                                          │
+ *   │ Сб  ██████████████████│╱╱╱╱░░░░░░░╱╱╱╱░░░░░░░    план 6 год  │  after "now": planned outages, hatched
+ *   │ legend · next planned outage · updated at                    │
+ *   └───────────────────────────────────────────────────────────┘
  *
- * Top bar (actual): only shows past/present data. Future days = empty.
- * Bottom bar (schedule): shows expected outages when data is available.
- * Blue now-marker drawn on top of everything.
- * White background for Telegram.
+ * Only Inter 400/600 is bundled, so every font-weight here must be one of those.
  */
 
-interface ChartDay {
+export interface ChartDay {
   dayLabel: string;
   dayDate: string;
   isToday: boolean;
   isFuture: boolean;
   nowHour: number | null;
-  outages: { startHour: number; endHour: number }[];
+  outages: { startHour: number; endHour: number; ongoing?: boolean }[];
   schedule: boolean[];
 }
 
-interface ChartData {
+export interface ChartData {
   weekLabel: string;
   group: string;
   days: ChartDay[];
+  /** Live device status; null when unknown. */
+  status: { on: boolean; since: string | null; durationHours: number | null } | null;
+  /** Longest outage of the week, e.g. { hours: 4.5, label: 'Чт 12:00–16:30' }. */
+  longestOutage: { hours: number; label: string } | null;
+  /** Footer hint about the schedule, e.g. "Наступне відключення за графіком: 18:00–21:30". */
+  scheduleHint: string | null;
+  updatedLabel: string;
 }
 
 export interface WeeklyStats {
-  totalPowerOnHours: number;
-  totalPowerOffHours: number;
-  scheduledOnHours: number;
-  scheduledOffHours: number;
-  diffMinutes: number;
-  diffPercent: number;
-  outageCount: number;
-  longestOn: number;
-  longestOff: number;
-  avgOutage: number;
+  onHours: number;
+  offHours: number;
   elapsedHours: number;
+  outageCount: number;
+  /** Actual minus scheduled "power on" hours over the elapsed part of the week; null without schedule data. */
+  diffVsScheduleHours: number | null;
 }
 
 const C = {
   bg: '#ffffff',
-  border: '#e2e8f0',
-  gridLine: '#cbd5e1',
-  gridMinor: '#e2e8f0',
-  text: '#1e293b',
-  muted: '#64748b',
-  dimmed: '#94a3b8',
-  green: '#22c55e',
-  red: '#ef4444',
-  yellow: '#eab308',
-  yellowLight: '#fef08a',
-  gray: '#d1d5db',
-  schedOff: '#cbd5e1',
-  accent: '#3b82f6',
-  todayBg: '#eff6ff',
-  statLabel: '#475569',
-  emptyBar: '#f1f5f9',
-  summaryOn: '#15803d',
-  summaryExp: '#a16207',
-  diffPos: '#059669',
-  diffNeg: '#dc2626',
-  sepLine: '#d1d5db',
+  tile: '#f6f6f3',
+  ink: '#0b0b0b',
+  ink2: '#52514e',
+  muted: '#898781',
+  grid: '#e7e6e0',
+  track: '#f1f0ec',
+  on: '#0ca30c',
+  off: '#d03b3b',
+  planned: '#e08a8a',
+  plannedBg: '#fdeeee',
+  plannedInk: '#a33a3a',
+  accent: '#2a78d6',
+  todayBg: '#eef4fc',
+  good: '#006300',
+  bad: '#b42d2d',
+  pillOnBg: '#e8f5e8',
+  pillOffBg: '#fbeaea',
 };
 
-const W = 720;
-const LABEL_W = 80;
-const PAD_X = 16;
-const SUMMARY_COL = 72;
-const SUMMARY_GAP = 8;
-const BAR_AREA_W = W - LABEL_W - PAD_X * 2 - SUMMARY_COL - SUMMARY_GAP;
-const TITLE_H = 44;
-const ACTUAL_H = 20;
-const SCHED_H = 8;
-const BAR_GAP = 3;
-const DAY_PAD = 6;
-const DAY_H = DAY_PAD + ACTUAL_H + BAR_GAP + SCHED_H + DAY_PAD + 4;
-const AXIS_H = 24;
-const LEGEND_H = 28;
-const STATS_H = 76;
-const TOP_PAD = 10;
-const H = TOP_PAD + TITLE_H + 7 * DAY_H + AXIS_H + LEGEND_H + STATS_H + 12;
+const FONT = 'font-family="Inter"';
+
+const W = 800;
+const PAD = 24;
+const LABEL_W = 56;
+const RIGHT_W = 96;
+const BAR_X = PAD + LABEL_W;
+const BAR_W = W - PAD - RIGHT_W - 12 - BAR_X;
+const TILES_Y = 92;
+const TILE_H = 74;
+const ROWS_TOP = 206;
+const ROW_H = 46;
+const BAR_Y = 9;
+const BAR_H = 20;
+const STRIP_Y = BAR_Y + BAR_H + 4;
+const STRIP_H = 5;
+const ROWS_BOTTOM = ROWS_TOP + 7 * ROW_H;
+const H = ROWS_BOTTOM + 82;
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function hourToX(h: number): number {
-  return LABEL_W + PAD_X + (h / 24) * BAR_AREA_W;
+  return BAR_X + (h / 24) * BAR_W;
+}
+
+/** Rough Inter text width; good enough for sizing pills and legend spacing. */
+function textW(s: string, size: number, bold = false): number {
+  return s.length * size * (bold ? 0.6 : 0.53);
+}
+
+export function fmtDur(hours: number): string {
+  const total = Math.round(hours * 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m} хв`;
+  if (m === 0) return `${h} год`;
+  return `${h} год ${m} хв`;
+}
+
+export function fmtClock(hour: number): string {
+  const total = Math.round(hour * 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function pluralOutages(n: number): string {
+  const d10 = n % 10;
+  const d100 = n % 100;
+  if (d10 === 1 && d100 !== 11) return `${n} відключення`;
+  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return `${n} відключення`;
+  return `${n} відключень`;
+}
+
+/** Scheduled "off" runs in hours, clipped to [from, to). */
+function plannedOffRuns(schedule: boolean[], from: number, to: number): { start: number; end: number }[] {
+  const runs: { start: number; end: number }[] = [];
+  if (schedule.length !== 48) return runs;
+  let s = -1;
+  for (let i = 0; i <= 48; i++) {
+    const off = i < 48 && !schedule[i];
+    if (off && s < 0) s = i;
+    if (!off && s >= 0) {
+      const start = Math.max(s * 0.5, from);
+      const end = Math.min(i * 0.5, to);
+      if (end > start) runs.push({ start, end });
+      s = -1;
+    }
+  }
+  return runs;
+}
+
+function dayCutoff(day: ChartDay): number {
+  if (day.isFuture) return 0;
+  return day.isToday && day.nowHour !== null ? day.nowHour : 24;
+}
+
+function sumRuns(runs: { start: number; end: number }[]): number {
+  return runs.reduce((acc, r) => acc + (r.end - r.start), 0);
 }
 
 export function computeWeeklyStats(data: ChartData): WeeklyStats {
-  let totalOn = 0, totalOff = 0, schedOn = 0, schedOff = 0;
-  let elapsed = 0, outageCount = 0, longestOn = 0, longestOff = 0;
+  let on = 0, off = 0, elapsed = 0, count = 0;
+  let schedOn = 0, actualOnWithSchedule = 0, hasSchedule = false;
 
   for (const day of data.days) {
-    if (day.isFuture) continue;
-    const dayEnd = day.isToday && day.nowHour !== null ? day.nowHour : 24;
-    elapsed += dayEnd;
-
-    const sorted = [...day.outages].sort((a, b) => a.startHour - b.startHour);
-    let offH = 0;
-    for (const o of sorted) {
-      const dur = o.endHour - o.startHour;
-      offH += dur;
-      outageCount++;
-      if (dur > longestOff) longestOff = dur;
+    const cutoff = dayCutoff(day);
+    if (cutoff <= 0) continue;
+    elapsed += cutoff;
+    let dayOff = 0;
+    for (const o of day.outages) {
+      dayOff += o.endHour - o.startHour;
+      // An outage crossing midnight is split per day; count it once.
+      if (o.startHour > 0) count++;
     }
-    totalOff += offH;
-    totalOn += dayEnd - offH;
+    off += dayOff;
+    on += cutoff - dayOff;
 
-    let prevEnd = 0;
-    for (const o of sorted) {
-      const gap = o.startHour - prevEnd;
-      if (gap > longestOn) longestOn = gap;
-      prevEnd = o.endHour;
-    }
-    const trailing = dayEnd - prevEnd;
-    if (trailing > longestOn) longestOn = trailing;
-
-    if (day.schedule && day.schedule.length === 48) {
-      for (let s = 0; s < 48; s++) {
-        const slotH = s * 0.5;
-        if (slotH >= dayEnd) break;
-        const slotDur = Math.min(0.5, dayEnd - slotH);
-        if (day.schedule[s]) schedOn += slotDur; else schedOff += slotDur;
-      }
+    if (day.schedule.length === 48) {
+      hasSchedule = true;
+      schedOn += cutoff - sumRuns(plannedOffRuns(day.schedule, 0, cutoff));
+      actualOnWithSchedule += cutoff - dayOff;
     }
   }
 
-  const diffMinutes = Math.round((totalOn - schedOn) * 60);
-  const diffPercent = schedOn > 0 ? Math.round(((totalOn - schedOn) / schedOn) * 1000) / 10 : 0;
-  const avgOutage = outageCount > 0 ? Math.round((totalOff / outageCount) * 10) / 10 : 0;
-
   return {
-    totalPowerOnHours: Math.round(totalOn * 10) / 10,
-    totalPowerOffHours: Math.round(totalOff * 10) / 10,
-    scheduledOnHours: Math.round(schedOn * 10) / 10,
-    scheduledOffHours: Math.round(schedOff * 10) / 10,
-    diffMinutes, diffPercent, outageCount,
-    longestOn: Math.round(longestOn * 10) / 10,
-    longestOff: Math.round(longestOff * 10) / 10,
-    avgOutage,
-    elapsedHours: Math.round(elapsed * 10) / 10,
+    onHours: on,
+    offHours: off,
+    elapsedHours: elapsed,
+    outageCount: count,
+    diffVsScheduleHours: hasSchedule ? actualOnWithSchedule - schedOn : null,
   };
-}
-
-function fmtHours(h: number): string {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}хв`;
-  if (mins === 0) return `${hrs}год`;
-  return `${hrs}год ${mins}хв`;
 }
 
 export function buildWeeklyChartSVG(data: ChartData): string {
   const p: string[] = [];
   const stats = computeWeeklyStats(data);
-  const barLeft = LABEL_W + PAD_X;
 
   p.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`);
-  p.push(`<rect width="${W}" height="${H}" rx="10" fill="${C.bg}"/>`);
+  p.push(
+    `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+      `<rect width="6" height="6" fill="${C.plannedBg}"/><rect width="2.5" height="6" fill="${C.planned}"/>` +
+      `</pattern></defs>`
+  );
+  p.push(`<rect width="${W}" height="${H}" fill="${C.bg}"/>`);
 
-  // Title
-  const titleY = TOP_PAD + 20;
-  p.push(`<text x="${W / 2}" y="${titleY}" text-anchor="middle" fill="${C.text}" font-family="Inter,Arial,sans-serif" font-size="16" font-weight="700">${esc(`Відключення за тиждень ${data.weekLabel}`)}</text>`);
-  p.push(`<text x="${W / 2}" y="${titleY + 16}" text-anchor="middle" fill="${C.muted}" font-family="Inter,Arial,sans-serif" font-size="11">Група: ${esc(data.group)}</text>`);
+  // ── Header ──
+  p.push(`<text x="${PAD}" y="46" fill="${C.ink}" ${FONT} font-size="22" font-weight="600">Світло за тиждень</text>`);
+  p.push(`<text x="${PAD}" y="70" fill="${C.ink2}" ${FONT} font-size="13">${esc(`${data.weekLabel} · група ${data.group}`)}</text>`);
 
-  const chartTop = TOP_PAD + TITLE_H;
-  const axisY = chartTop + 7 * DAY_H;
-
-  // Grid lines (behind bars)
-  for (let h = 0; h <= 24; h++) {
-    const x = hourToX(h);
-    if (h % 4 === 0 && h > 0 && h < 24) {
-      p.push(`<line x1="${x}" y1="${chartTop}" x2="${x}" y2="${axisY}" stroke="${C.gridLine}" stroke-width="0.75"/>`);
-    } else if (h > 0 && h < 24) {
-      p.push(`<line x1="${x}" y1="${chartTop}" x2="${x}" y2="${axisY}" stroke="${C.gridMinor}" stroke-width="0.4"/>`);
+  if (data.status) {
+    const title = data.status.on ? 'Світло є' : 'Світла немає';
+    const parts: string[] = [];
+    if (data.status.since) parts.push(`з ${data.status.since}`);
+    if (data.status.durationHours !== null) parts.push(fmtDur(data.status.durationHours));
+    const sub = parts.join(' · ');
+    const pillW = Math.max(textW(title, 14, true), textW(sub, 11)) + 44;
+    const pillX = W - PAD - pillW;
+    const pillY = 24;
+    p.push(`<rect x="${pillX}" y="${pillY}" width="${pillW}" height="48" rx="12" fill="${data.status.on ? C.pillOnBg : C.pillOffBg}"/>`);
+    p.push(`<circle cx="${pillX + 18}" cy="${pillY + (sub ? 18 : 24)}" r="5" fill="${data.status.on ? C.on : C.off}"/>`);
+    p.push(`<text x="${pillX + 32}" y="${pillY + (sub ? 23 : 29)}" fill="${C.ink}" ${FONT} font-size="14" font-weight="600">${esc(title)}</text>`);
+    if (sub) {
+      p.push(`<text x="${pillX + 32}" y="${pillY + 39}" fill="${C.ink2}" ${FONT} font-size="11">${esc(sub)}</text>`);
     }
   }
 
-  // Collect now-markers to draw last (on top of everything)
-  const nowMarkers: string[] = [];
+  // ── KPI tiles ──
+  const upPct = stats.elapsedHours > 0 ? Math.round((stats.onHours / stats.elapsedHours) * 100) : 0;
+  const diff = stats.diffVsScheduleHours;
+  const diffRounded = diff === null ? null : Math.round(diff * 60) / 60;
+  const tiles: { label: string; value: string; sub: string; color?: string }[] = [
+    {
+      label: 'Зі світлом',
+      value: `${upPct}%`,
+      sub: `${fmtDur(stats.onHours)} з ${stats.elapsedHours >= 24 ? `${Math.round(stats.elapsedHours)} год` : fmtDur(stats.elapsedHours)}`,
+    },
+    {
+      label: 'Без світла',
+      value: fmtDur(stats.offHours),
+      sub: stats.outageCount > 0 ? pluralOutages(stats.outageCount) : 'відключень не було',
+    },
+    {
+      label: 'Найдовше відключення',
+      value: data.longestOutage ? fmtDur(data.longestOutage.hours) : '—',
+      sub: data.longestOutage ? data.longestOutage.label : 'відключень не було',
+    },
+    diffRounded === null
+      ? { label: 'Порівняно з графіком', value: '—', sub: 'графіка немає' }
+      : {
+          label: 'Порівняно з графіком',
+          value: diffRounded === 0 ? '0 хв' : `${diffRounded > 0 ? '+' : '−'}${fmtDur(Math.abs(diffRounded))}`,
+          sub: diffRounded > 0 ? 'світла більше за графік' : diffRounded < 0 ? 'світла менше за графік' : 'точно за графіком',
+          color: diffRounded > 0 ? C.good : diffRounded < 0 ? C.bad : undefined,
+        },
+  ];
+  const tileGap = 10;
+  const tileW = (W - PAD * 2 - tileGap * (tiles.length - 1)) / tiles.length;
+  tiles.forEach((t, i) => {
+    const x = PAD + i * (tileW + tileGap);
+    p.push(`<rect x="${x}" y="${TILES_Y}" width="${tileW}" height="${TILE_H}" rx="10" fill="${C.tile}"/>`);
+    p.push(`<text x="${x + 14}" y="${TILES_Y + 22}" fill="${C.ink2}" ${FONT} font-size="11.5">${esc(t.label)}</text>`);
+    const valueSize = textW(t.value, 20, true) > tileW - 28 ? 16 : 20;
+    p.push(`<text x="${x + 14}" y="${TILES_Y + 47}" fill="${t.color || C.ink}" ${FONT} font-size="${valueSize}" font-weight="600">${esc(t.value)}</text>`);
+    p.push(`<text x="${x + 14}" y="${TILES_Y + 64}" fill="${C.muted}" ${FONT} font-size="11">${esc(t.sub)}</text>`);
+  });
 
-  // Draw days
-  for (let i = 0; i < 7 && i < data.days.length; i++) {
+  // ── Hour axis + grid ──
+  for (let h = 0; h <= 24; h += 3) {
+    const x = hourToX(h);
+    p.push(`<text x="${x}" y="${ROWS_TOP - 10}" text-anchor="middle" fill="${C.muted}" ${FONT} font-size="11">${String(h).padStart(2, '0')}</text>`);
+    p.push(`<line x1="${x}" y1="${ROWS_TOP - 4}" x2="${x}" y2="${ROWS_BOTTOM}" stroke="${C.grid}" stroke-width="1"/>`);
+  }
+  p.push(`<text x="${W - PAD}" y="${ROWS_TOP - 10}" text-anchor="end" fill="${C.muted}" ${FONT} font-size="11">без світла</text>`);
+
+  // ── Day rows ──
+  const overlay: string[] = [];
+  for (let i = 0; i < data.days.length && i < 7; i++) {
     const day = data.days[i];
-    const rowY = chartTop + i * DAY_H;
-    const hasSchedule = day.schedule && day.schedule.length === 48;
+    const top = ROWS_TOP + i * ROW_H;
+    const barY = top + BAR_Y;
+    const stripY = top + STRIP_Y;
+    const cutoff = dayCutoff(day);
+    const cutX = hourToX(cutoff);
+    const hasSchedule = day.schedule.length === 48;
 
-    // Today highlight
     if (day.isToday) {
-      p.push(`<rect x="${PAD_X / 2}" y="${rowY}" width="${W - PAD_X}" height="${DAY_H - 2}" rx="5" fill="${C.todayBg}"/>`);
+      p.push(`<rect x="${PAD - 10}" y="${top + 1}" width="${W - PAD * 2 + 20}" height="${ROW_H - 2}" rx="10" fill="${C.todayBg}"/>`);
+      // Today's highlight covers the grid; redraw it inside the row.
+      for (let h = 3; h < 24; h += 3) {
+        const x = hourToX(h);
+        p.push(`<line x1="${x}" y1="${top + 1}" x2="${x}" y2="${top + ROW_H - 1}" stroke="${C.grid}" stroke-width="1"/>`);
+      }
     }
 
-    // Row separator
-    if (i > 0) {
-      p.push(`<line x1="${barLeft}" y1="${rowY}" x2="${W - PAD_X}" y2="${rowY}" stroke="${C.border}" stroke-width="0.5"/>`);
-    }
+    const labelColor = day.isToday ? C.accent : day.isFuture ? C.muted : C.ink;
+    p.push(`<text x="${PAD}" y="${top + 23}" fill="${labelColor}" ${FONT} font-size="14" font-weight="600">${esc(day.dayLabel)}</text>`);
+    p.push(`<text x="${PAD}" y="${top + 38}" fill="${C.muted}" ${FONT} font-size="11">${esc(day.dayDate)}</text>`);
 
-    // Day label
-    const labelColor = day.isToday ? C.accent : (day.isFuture ? C.dimmed : C.text);
-    const labelWeight = day.isToday ? '700' : '600';
-    p.push(`<text x="${LABEL_W - 6}" y="${rowY + DAY_PAD + 13}" text-anchor="end" fill="${labelColor}" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="${labelWeight}">${esc(day.dayLabel)}</text>`);
-    p.push(`<text x="${LABEL_W - 6}" y="${rowY + DAY_PAD + 26}" text-anchor="end" fill="${C.dimmed}" font-family="Inter,Arial,sans-serif" font-size="9.5">${esc(day.dayDate)}</text>`);
-
-    // ── Top bar: Actual data ──
-    const actualY = rowY + DAY_PAD;
-
-    if (!day.isFuture) {
-      // Draw actual bar: green base + red outages
-      const cutoff = day.isToday && day.nowHour !== null ? day.nowHour : 24;
-      const greenRight = hourToX(cutoff);
-
-      // Green (power on) base
-      p.push(`<rect x="${barLeft}" y="${actualY}" width="${greenRight - barLeft}" height="${ACTUAL_H}" rx="3" fill="${C.green}"/>`);
-
-      // Red outage overlays
+    // Track for the whole day, then actual data up to the cutoff.
+    p.push(`<rect x="${BAR_X}" y="${barY}" width="${BAR_W}" height="${BAR_H}" rx="4" fill="${C.track}"/>`);
+    if (cutoff > 0) {
+      p.push(`<rect x="${BAR_X}" y="${barY}" width="${cutX - BAR_X}" height="${BAR_H}" rx="4" fill="${C.on}"/>`);
       for (const o of day.outages) {
-        const oLeft = hourToX(o.startHour);
-        const oRight = hourToX(o.endHour);
-        if (oRight - oLeft > 0) {
-          p.push(`<rect x="${oLeft}" y="${actualY}" width="${oRight - oLeft}" height="${ACTUAL_H}" rx="2" fill="${C.red}"/>`);
+        const x1 = hourToX(o.startHour);
+        const x2 = hourToX(o.endHour);
+        if (x2 - x1 < 0.5) continue;
+        p.push(`<rect x="${x1}" y="${barY}" width="${x2 - x1}" height="${BAR_H}" rx="3" fill="${C.off}"/>`);
+        const label = o.ongoing
+          ? (o.startHour > 0 ? `з ${fmtClock(o.startHour)}` : 'триває')
+          : `${fmtClock(o.startHour)}–${fmtClock(o.endHour)}`;
+        if (x2 - x1 >= textW(label, 10.5, true) + 8) {
+          overlay.push(`<text x="${(x1 + x2) / 2}" y="${barY + 14}" text-anchor="middle" fill="#ffffff" ${FONT} font-size="10.5" font-weight="600">${label}</text>`);
         }
       }
-
-      // Actual bar border (only for filled part)
-      p.push(`<rect x="${barLeft}" y="${actualY}" width="${greenRight - barLeft}" height="${ACTUAL_H}" rx="3" fill="none" stroke="${C.border}" stroke-width="0.5"/>`);
-
-      // Now marker — collect for later (drawn on top of everything)
-      if (day.isToday && day.nowHour !== null) {
-        const nowX = hourToX(day.nowHour);
-        nowMarkers.push(`<line x1="${nowX}" y1="${actualY - 3}" x2="${nowX}" y2="${actualY + ACTUAL_H + BAR_GAP + SCHED_H + 3}" stroke="${C.accent}" stroke-width="2.5" stroke-linecap="round"/>`);
-        nowMarkers.push(`<circle cx="${nowX}" cy="${actualY - 3}" r="3" fill="${C.accent}"/>`);
-      }
-    } else {
-      // Future day: empty top bar — just a thin border placeholder
-      p.push(`<rect x="${barLeft}" y="${actualY}" width="${BAR_AREA_W}" height="${ACTUAL_H}" rx="3" fill="${C.emptyBar}" stroke="${C.border}" stroke-width="0.5" stroke-dasharray="4,3"/>`);
     }
 
-    // ── Bottom bar: Schedule ──
-    const schedY = actualY + ACTUAL_H + BAR_GAP;
-
-    if (hasSchedule) {
-      // Schedule bar background
-      p.push(`<rect x="${barLeft}" y="${schedY}" width="${BAR_AREA_W}" height="${SCHED_H}" rx="2" fill="${C.schedOff}"/>`);
-
-      // Schedule segments
-      let runStart = 0;
-      let runOn = day.schedule[0];
-      for (let s = 1; s <= 48; s++) {
-        const on = s < 48 ? day.schedule[s] : !runOn;
-        if (on !== runOn) {
-          const sLeft = hourToX(runStart * 0.5);
-          const sRight = hourToX(s * 0.5);
-          p.push(`<rect x="${sLeft}" y="${schedY}" width="${sRight - sLeft}" height="${SCHED_H}" rx="2" fill="${runOn ? C.yellow : C.schedOff}"/>`);
-          runStart = s;
-          runOn = on;
+    // Planned outages for the part of the day that hasn't happened yet.
+    if (hasSchedule && cutoff < 24) {
+      for (const r of plannedOffRuns(day.schedule, cutoff, 24)) {
+        const x1 = hourToX(r.start);
+        const x2 = hourToX(r.end);
+        p.push(`<rect x="${x1}" y="${barY}" width="${x2 - x1}" height="${BAR_H}" rx="3" fill="url(#hatch)"/>`);
+        if (x2 - x1 >= textW('00:00–00:00', 10.5, true) + 8) {
+          overlay.push(
+            `<text x="${(x1 + x2) / 2}" y="${barY + 14}" text-anchor="middle" fill="${C.plannedInk}" stroke="${C.plannedBg}" stroke-width="3" paint-order="stroke" stroke-linejoin="round" ${FONT} font-size="10.5" font-weight="600">${fmtClock(r.start)}–${fmtClock(r.end)}</text>`
+          );
         }
       }
-
-      p.push(`<rect x="${barLeft}" y="${schedY}" width="${BAR_AREA_W}" height="${SCHED_H}" rx="2" fill="none" stroke="${C.border}" stroke-width="0.4"/>`);
-    } else {
-      // No schedule data: empty dashed placeholder
-      p.push(`<rect x="${barLeft}" y="${schedY}" width="${BAR_AREA_W}" height="${SCHED_H}" rx="2" fill="${C.emptyBar}" stroke="${C.border}" stroke-width="0.4" stroke-dasharray="3,2"/>`);
     }
 
-    // ── Summary column (right of bars) ──
-    if (!day.isFuture) {
-      const smR = W - PAD_X - 2;
-      const dayEnd = day.isToday && day.nowHour !== null ? day.nowHour : 24;
-      let outageH = 0;
-      for (const o of day.outages) outageH += o.endHour - o.startHour;
-      const actualOnH = Math.max(0, Math.round((dayEnd - outageH) * 10) / 10);
-
-      // Actual ON hours
-      p.push(`<text x="${smR}" y="${actualY + 12}" text-anchor="end" fill="${C.summaryOn}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700">${fmtHours(actualOnH)}</text>`);
-
-      if (hasSchedule) {
-        // Separator line
-        p.push(`<line x1="${smR - 44}" y1="${actualY + 16}" x2="${smR}" y2="${actualY + 16}" stroke="${C.sepLine}" stroke-width="0.75"/>`);
-
-        // Expected ON hours
-        let expOnH = 0;
-        for (let s = 0; s < 48; s++) {
-          const sh = s * 0.5;
-          if (sh >= dayEnd) break;
-          expOnH += Math.min(0.5, dayEnd - sh) * (day.schedule[s] ? 1 : 0);
-        }
-        expOnH = Math.round(expOnH * 10) / 10;
-        p.push(`<text x="${smR}" y="${actualY + 26}" text-anchor="end" fill="${C.summaryExp}" font-family="Inter,Arial,sans-serif" font-size="9.5">${fmtHours(expOnH)}</text>`);
-
-        // Difference
-        const diff = Math.round((actualOnH - expOnH) * 10) / 10;
-        const dc = diff > 0 ? C.diffPos : (diff < 0 ? C.diffNeg : C.muted);
-        const ds = diff > 0 ? '+' : (diff < 0 ? '-' : '');
-        p.push(`<text x="${smR}" y="${actualY + 36}" text-anchor="end" fill="${dc}" font-family="Inter,Arial,sans-serif" font-size="9" font-weight="600">${ds}${fmtHours(Math.abs(diff))}</text>`);
+    // Schedule strip under the elapsed part, to compare reality with the plan.
+    if (hasSchedule && cutoff > 0) {
+      p.push(`<rect x="${BAR_X}" y="${stripY}" width="${cutX - BAR_X}" height="${STRIP_H}" rx="2" fill="${C.track}"/>`);
+      for (const r of plannedOffRuns(day.schedule, 0, cutoff)) {
+        p.push(`<rect x="${hourToX(r.start)}" y="${stripY}" width="${hourToX(r.end) - hourToX(r.start)}" height="${STRIP_H}" rx="2" fill="${C.planned}"/>`);
       }
+    }
+
+    if (day.isToday && day.nowHour !== null) {
+      overlay.push(`<line x1="${cutX}" y1="${barY - 4}" x2="${cutX}" y2="${stripY + STRIP_H + 3}" stroke="${C.accent}" stroke-width="2" stroke-linecap="round"/>`);
+      overlay.push(`<circle cx="${cutX}" cy="${barY - 4}" r="4" fill="${C.accent}" stroke="${C.bg}" stroke-width="1.5"/>`);
+    }
+
+    // Right column: hours without power (actual for past days, planned for future ones).
+    const rx = W - PAD;
+    const scheduledOff = hasSchedule ? sumRuns(plannedOffRuns(day.schedule, 0, cutoff > 0 ? cutoff : 24)) : null;
+    if (cutoff > 0) {
+      const off = day.outages.reduce((acc, o) => acc + (o.endHour - o.startHour), 0);
+      if (off >= 1 / 60) {
+        p.push(`<text x="${rx}" y="${top + 23}" text-anchor="end" fill="${C.ink}" ${FONT} font-size="13" font-weight="600">${fmtDur(off)}</text>`);
+      } else {
+        p.push(`<text x="${rx}" y="${top + 23}" text-anchor="end" fill="${C.good}" ${FONT} font-size="12" font-weight="600">без відкл.</text>`);
+      }
+      if (scheduledOff !== null) {
+        p.push(`<text x="${rx}" y="${top + 38}" text-anchor="end" fill="${C.muted}" ${FONT} font-size="11">${esc(`графік ${fmtDur(scheduledOff)}`)}</text>`);
+      }
+    } else if (scheduledOff !== null) {
+      p.push(`<text x="${rx}" y="${top + 28}" text-anchor="end" fill="${C.muted}" ${FONT} font-size="12">${esc(`план ${fmtDur(scheduledOff)}`)}</text>`);
+    } else {
+      p.push(`<text x="${rx}" y="${top + 28}" text-anchor="end" fill="${C.muted}" ${FONT} font-size="12">—</text>`);
     }
   }
 
-  // Draw now-markers on top of everything
-  for (const m of nowMarkers) {
-    p.push(m);
-  }
-
-  // Hour axis
-  const tickY = axisY + 2;
-  for (let h = 0; h <= 24; h++) {
+  // Light gridlines over the bars make hours readable inside long segments.
+  for (let h = 3; h < 24; h += 3) {
     const x = hourToX(h);
-    if (h % 4 === 0) {
-      p.push(`<line x1="${x}" y1="${tickY}" x2="${x}" y2="${tickY + 5}" stroke="${C.muted}" stroke-width="1"/>`);
-      p.push(`<text x="${x}" y="${tickY + 16}" text-anchor="middle" fill="${C.muted}" font-family="Inter,Arial,sans-serif" font-size="10">${h}</text>`);
-    } else {
-      p.push(`<line x1="${x}" y1="${tickY}" x2="${x}" y2="${tickY + 3}" stroke="${C.dimmed}" stroke-width="0.5"/>`);
+    for (let i = 0; i < 7; i++) {
+      const y = ROWS_TOP + i * ROW_H + BAR_Y;
+      p.push(`<line x1="${x}" y1="${y}" x2="${x}" y2="${y + BAR_H}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1"/>`);
     }
   }
+  p.push(...overlay);
 
-  // Legend
-  const legY = axisY + AXIS_H + 6;
-  const legItems: { color: string; label: string }[] = [
-    { color: C.green, label: 'Є світло' },
-    { color: C.red, label: 'Відключення' },
-    { color: C.yellow, label: 'Графік: увімк' },
-    { color: C.schedOff, label: 'Графік: вимк' },
+  // ── Legend ──
+  const legY = ROWS_BOTTOM + 22;
+  let lx = BAR_X;
+  const legend: { swatch: string; label: string }[] = [
+    { swatch: `<rect x="0" y="-9" width="14" height="10" rx="2" fill="${C.on}"/>`, label: 'Світло було' },
+    { swatch: `<rect x="0" y="-9" width="14" height="10" rx="2" fill="${C.off}"/>`, label: 'Відключення' },
+    { swatch: `<rect x="0" y="-9" width="14" height="10" rx="2" fill="url(#hatch)"/>`, label: 'Заплановано графіком' },
+    { swatch: `<rect x="0" y="-6" width="14" height="5" rx="2" fill="${C.planned}"/>`, label: 'Графік (для порівняння)' },
+    { swatch: `<line x1="7" y1="-11" x2="7" y2="3" stroke="${C.accent}" stroke-width="2" stroke-linecap="round"/>`, label: 'Зараз' },
   ];
-  let legX = barLeft;
-  for (const item of legItems) {
-    p.push(`<rect x="${legX}" y="${legY}" width="10" height="10" rx="2" fill="${item.color}"/>`);
-    p.push(`<text x="${legX + 14}" y="${legY + 9}" fill="${C.muted}" font-family="Inter,Arial,sans-serif" font-size="9.5">${esc(item.label)}</text>`);
-    legX += 14 + item.label.length * 5.8 + 14;
+  for (const item of legend) {
+    p.push(`<g transform="translate(${lx} ${legY})">${item.swatch}</g>`);
+    p.push(`<text x="${lx + 20}" y="${legY}" fill="${C.ink2}" ${FONT} font-size="11">${esc(item.label)}</text>`);
+    lx += 20 + textW(item.label, 11) + 18;
   }
 
-  // Statistics
-  const statsTop = legY + LEGEND_H;
-  p.push(`<line x1="${PAD_X}" y1="${statsTop - 4}" x2="${W - PAD_X}" y2="${statsTop - 4}" stroke="${C.border}" stroke-width="0.5"/>`);
-
-  const col1 = PAD_X + 8;
-  const col2 = W / 2 + 8;
-  const lineH = 15;
-  const sFont = `font-family="Inter,Arial,sans-serif" font-size="10"`;
-  const bFont = `font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700"`;
-  const upPct = Math.round((stats.totalPowerOnHours / Math.max(stats.elapsedHours, 1)) * 1000) / 10;
-
-  const statLines: [number, string | null, string, string][] = [
-    [col1, C.green, 'Зі світлом: ', `${fmtHours(stats.totalPowerOnHours)} (${upPct}%)`],
-    [col2, C.red, 'Без світла: ', `${fmtHours(stats.totalPowerOffHours)}, ${stats.outageCount} відкл.`],
-    [col1, null, 'Найдовше зі світлом: ', `${fmtHours(stats.longestOn)}`],
-    [col2, null, 'Найдовше без світла: ', `${fmtHours(stats.longestOff)}`],
-    [col1, null, 'Середнє відключення: ', `${fmtHours(stats.avgOutage)}`],
-    [col2, null, 'Різниця від графіку: ', `${stats.diffMinutes > 0 ? '+' : ''}${stats.diffMinutes}хв (${stats.diffPercent > 0 ? '+' : ''}${stats.diffPercent}%)`],
-  ];
-
-  for (let i = 0; i < statLines.length; i++) {
-    const [x, dot, label, value] = statLines[i];
-    const y = statsTop + 8 + Math.floor(i / 2) * lineH;
-    const textX = dot ? x + 12 : x;
-    if (dot) {
-      p.push(`<circle cx="${x + 4}" cy="${y - 3}" r="4" fill="${dot}"/>`);
-    }
-    p.push(`<text x="${textX}" y="${y}" fill="${C.statLabel}" ${sFont}>${esc(label)}<tspan ${bFont}>${esc(value)}</tspan></text>`);
+  // ── Footer ──
+  const footY = H - 18;
+  p.push(`<line x1="${PAD}" y1="${footY - 22}" x2="${W - PAD}" y2="${footY - 22}" stroke="${C.grid}" stroke-width="1"/>`);
+  if (data.scheduleHint) {
+    p.push(`<text x="${PAD}" y="${footY}" fill="${C.ink2}" ${FONT} font-size="12">${esc(data.scheduleHint)}</text>`);
   }
+  p.push(`<text x="${W - PAD}" y="${footY}" text-anchor="end" fill="${C.muted}" ${FONT} font-size="11">${esc(`Оновлено ${data.updatedLabel}`)}</text>`);
 
   p.push('</svg>');
   return p.join('\n');

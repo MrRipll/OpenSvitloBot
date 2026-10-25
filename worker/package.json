@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy -c .wrangler.toml",
-    "db:init": "wrangler d1 execute opensvitlobot-db --file=./schema.sql"
+    "db:init": "wrangler d1 execute opensvitlobot-db --file=./schema.sql",
+    "preview:chart": "node scripts/preview-chart.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240512.0",

@@ -18,3 +18,8 @@ fallthrough = false
 [vars]
 CORS_ORIGIN = "*"
 OUTAGE_GROUP = "GPV6.2"
+
+# Workers Logs: keeps console output, exceptions and CPU time per invocation
+# (Dashboard → Workers → opensvitlobot → Logs; also queryable via the Cloudflare observability MCP).
+[observability]
+enabled = true

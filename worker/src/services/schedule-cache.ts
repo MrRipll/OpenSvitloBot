@@ -23,20 +23,19 @@ export async function refreshScheduleCache(db: D1Database, group: string): Promi
   const days = data.fact.data;
   const now = Date.now();
 
+  const upsert = db.prepare(
+    'INSERT INTO schedule_days (date, group_name, slots, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(date, group_name) DO UPDATE SET slots = excluded.slots, updated_at = excluded.updated_at WHERE schedule_days.slots != excluded.slots'
+  );
+  const statements: D1PreparedStatement[] = [];
   for (const dayKey of Object.keys(days)) {
     if (!days[dayKey][group]) continue;
 
     const slots = parseDay(days[dayKey][group]);
-    const ts = Number(dayKey);
-    const date = dateFmt.format(new Date(ts * 1000));
-
-    await db
-      .prepare(
-        'INSERT INTO schedule_days (date, group_name, slots, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(date, group_name) DO UPDATE SET slots = excluded.slots, updated_at = excluded.updated_at'
-      )
-      .bind(date, group, JSON.stringify(slots), now)
-      .run();
+    const date = dateFmt.format(new Date(Number(dayKey) * 1000));
+    statements.push(upsert.bind(date, group, JSON.stringify(slots), now));
   }
+
+  if (statements.length > 0) await db.batch(statements);
 }
 
 /**

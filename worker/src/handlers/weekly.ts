@@ -1,16 +1,19 @@
 const DAY_LABELS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'НД'];
 
+const kyivPartsFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Kyiv',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  hour12: false,
+  weekday: 'short',
+});
+const utcDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' });
+
 function getKyivParts(date: Date): { year: number; month: number; day: number; hours: number; minutes: number; dow: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Kyiv',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-    weekday: 'short',
-  }).formatToParts(date);
+  const parts = kyivPartsFmt.formatToParts(date);
 
   const get = (type: string) => parts.find(p => p.type === type)?.value || '0';
 
@@ -22,7 +25,7 @@ function getKyivParts(date: Date): { year: number; month: number; day: number; h
     year: parseInt(get('year')),
     month: parseInt(get('month')),
     day: parseInt(get('day')),
-    hours: parseInt(get('hour')),
+    hours: parseInt(get('hour')) % 24,
     minutes: parseInt(get('minute')),
     dow,
   };
@@ -41,8 +44,8 @@ function getWeekBounds(now: Date): { weekStartMs: number; weekEndMs: number; wee
   const nowFloored = Math.floor(now.getTime() / 60000) * 60000;
   const kyivOffsetMs = nowFloored - todayMs - p.hours * 3600000 - p.minutes * 60000;
 
-  const mondayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date(mondayMs));
-  const sundayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date(sundayMs - 86400000));
+  const mondayDate = utcDateFmt.format(new Date(mondayMs));
+  const sundayDate = utcDateFmt.format(new Date(sundayMs - 86400000));
 
   return {
     weekStartMs: mondayMs + kyivOffsetMs,

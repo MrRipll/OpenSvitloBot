@@ -100,7 +100,10 @@ export async function sendPhotoBufferGetId(
   form.append('photo', new Blob([pngData], { type: 'image/png' }), 'chart.png');
 
   const resp = await fetch(url, { method: 'POST', body: form });
-  if (!resp.ok) return null;
+  if (!resp.ok) {
+    console.error('sendPhoto failed', resp.status, await resp.text());
+    return null;
+  }
   const data = await resp.json<{ ok: boolean; result?: { message_id: number } }>();
   return data.ok && data.result ? data.result.message_id : null;
 }
@@ -110,8 +113,8 @@ export async function editMessageMediaBuffer(
   messageId: number,
   pngData: Uint8Array,
   caption: string
-): Promise<boolean> {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false;
+): Promise<{ ok: boolean; error?: string }> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return { ok: false, error: 'telegram not configured' };
 
   const url = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/editMessageMedia`;
   const form = new FormData();
@@ -126,7 +129,9 @@ export async function editMessageMediaBuffer(
   form.append('photo', new Blob([pngData], { type: 'image/png' }), 'chart.png');
 
   const resp = await fetch(url, { method: 'POST', body: form });
-  return resp.ok;
+  if (resp.ok) return { ok: true };
+  const data = await resp.json<{ description?: string }>().catch(() => ({ description: undefined }));
+  return { ok: false, error: data.description || `HTTP ${resp.status}` };
 }
 
 function kyivTimeStr(date: Date): string {

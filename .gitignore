@@ -4,3 +4,5 @@ node_modules/
 .claude/
 dist/
 *.log
+chart-preview*.png
+worker/.wrangler.toml

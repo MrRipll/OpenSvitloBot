@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS outages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outages_device ON outages(device_id, start_time);
+CREATE INDEX IF NOT EXISTS idx_outages_end ON outages(end_time);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
 
 CREATE TABLE IF NOT EXISTS schedule_days (
@@ -32,9 +33,15 @@ CREATE TABLE IF NOT EXISTS schedule_days (
 CREATE TABLE IF NOT EXISTS telegram_chart (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   message_id INTEGER NOT NULL,
-  week_start INTEGER NOT NULL
+  week_start INTEGER NOT NULL,
+  hash TEXT
 );
 `;
+
+// Columns added after the initial release. ALTER fails if the column exists — that's fine.
+const ALTERS = [
+  'ALTER TABLE telegram_chart ADD COLUMN hash TEXT',
+];
 
 let migrated = false;
 
@@ -46,8 +53,14 @@ export async function ensureSchema(db: D1Database): Promise<void> {
     .map(s => s.trim())
     .filter(s => s.length > 0);
 
-  for (const sql of statements) {
-    await db.prepare(sql).run();
+  await db.batch(statements.map(sql => db.prepare(sql)));
+
+  for (const sql of ALTERS) {
+    try {
+      await db.prepare(sql).run();
+    } catch {
+      // column already exists
+    }
   }
 
   migrated = true;

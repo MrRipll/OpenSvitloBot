@@ -110,7 +110,10 @@ export function getScheduledRestoration(schedule: HalfHourSlots[], now: Date): s
 }
 
 /** Find next planned outage block. Returns {start, end} times or null. */
-export function getNextScheduledOutage(schedule: HalfHourSlots[], now: Date): { start: string; end: string } | null {
+export function getNextScheduledOutage(
+  schedule: HalfHourSlots[],
+  now: Date
+): { start: string; end: string; startsTomorrow: boolean } | null {
   const { hours, minutes } = getKyivTime(now);
   const currentSlot = hours * 2 + (minutes >= 30 ? 1 : 0);
 
@@ -142,5 +145,5 @@ export function getNextScheduledOutage(schedule: HalfHourSlots[], now: Date): { 
     end++;
   }
 
-  return { start: slotToTime(start), end: slotToTime(end) };
+  return { start: slotToTime(start), end: slotToTime(end), startsTomorrow: start >= 48 };
 }
