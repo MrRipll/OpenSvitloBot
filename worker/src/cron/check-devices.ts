@@ -2,6 +2,7 @@ import { Env } from '../types';
 import { getStaleOnlineDevices, updateDeviceStatus, createOutage } from '../services/db';
 import { sendMessage, formatOutageMessage } from '../services/telegram';
 import { fetchSchedule, getScheduledRestoration } from '../services/schedule';
+import { markPublicHistoryDirty } from '../services/public-history';
 
 const STALE_THRESHOLD_MS = 45 * 1000; // 45 seconds (3 missed pings at 15s interval)
 
@@ -14,6 +15,7 @@ export async function checkDevices(env: Env): Promise<void> {
 
     await updateDeviceStatus(env.DB, device.id, 'offline', outageTime);
     await createOutage(env.DB, device.id, outageTime);
+    await markPublicHistoryDirty(env.DB);
 
     const onlineDurationMs = device.last_status_change ? outageTime - device.last_status_change : 0;
 

@@ -6,3 +6,5 @@ dist/
 *.log
 chart-preview*.png
 worker/.wrangler.toml
+site-preview/
+site-preview-*.png

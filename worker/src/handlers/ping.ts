@@ -2,6 +2,7 @@ import { Env } from '../types';
 import { ensureDevice, recordPing, closeOutage, updateDeviceStatus } from '../services/db';
 import { sendMessage, formatRecoveryMessage } from '../services/telegram';
 import { fetchSchedule, getNextScheduledOutage } from '../services/schedule';
+import { markPublicHistoryDirty } from '../services/public-history';
 
 export async function handlePing(env: Env): Promise<Response> {
   const device = await ensureDevice(env.DB);
@@ -13,6 +14,7 @@ export async function handlePing(env: Env): Promise<Response> {
   if (wasOffline) {
     await updateDeviceStatus(env.DB, device.id, 'online', now);
     await closeOutage(env.DB, device.id, now);
+    await markPublicHistoryDirty(env.DB);
 
     const offlineDurationMs = device.last_status_change ? now - device.last_status_change : 0;
 

@@ -1,4 +1,5 @@
 import { parseDay } from './schedule';
+import { markPublicHistoryDirty, savePreset } from './public-history';
 
 const SCHEDULE_URL = 'https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/data/kyiv-region.json';
 
@@ -7,6 +8,29 @@ interface ScheduleData {
     data: Record<string, Record<string, Record<string, string>>>;
     today: number;
   };
+  /** Weekly template of possible outages: data[group][weekday 1..7][hour 1..24]. */
+  preset?: {
+    data?: Record<string, Record<string, Record<string, string>>>;
+  };
+}
+
+/** Preset hour value → two half-hour slots: 1 = on, 0 = off, 2 = possible outage. */
+const PRESET_SLOTS: Record<string, string> = {
+  yes: '11', no: '00', maybe: '22',
+  first: '01', second: '10', mfirst: '21', msecond: '12',
+};
+
+function parsePreset(week: Record<string, Record<string, string>> | undefined): string[] | null {
+  if (!week) return null;
+  const days: string[] = [];
+  for (let d = 1; d <= 7; d++) {
+    const day = week[String(d)];
+    if (!day) return null;
+    let s = '';
+    for (let h = 1; h <= 24; h++) s += PRESET_SLOTS[day[String(h)]] ?? '11';
+    days.push(s);
+  }
+  return days;
 }
 
 const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' });
@@ -35,7 +59,16 @@ export async function refreshScheduleCache(db: D1Database, group: string): Promi
     statements.push(upsert.bind(date, group, JSON.stringify(slots), now));
   }
 
-  if (statements.length > 0) await db.batch(statements);
+  let changed = false;
+  if (statements.length > 0) {
+    const results = await db.batch(statements);
+    changed = results.some(r => (r.meta.changes ?? 0) > 0);
+  }
+
+  const preset = parsePreset(data.preset?.data?.[group]);
+  if (preset && (await savePreset(db, preset))) changed = true;
+
+  if (changed) await markPublicHistoryDirty(db);
 }
 
 /**

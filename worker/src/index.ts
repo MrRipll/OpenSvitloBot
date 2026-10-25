@@ -4,6 +4,7 @@ import { handlePing } from './handlers/ping';
 import { checkDevices } from './cron/check-devices';
 import { updateWeeklyChart } from './cron/update-chart';
 import { refreshScheduleCache } from './services/schedule-cache';
+import { handlePublicHistory, refreshPublicHistory } from './services/public-history';
 
 function corsHeaders(env: Env): Record<string, string> {
   return {
@@ -40,7 +41,18 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(env) });
     }
 
-    // Auth: require API_KEY on all endpoints
+    // Public analytics data for the site — no key, read-only.
+    if (url.pathname === '/api/public/history' && request.method === 'GET') {
+      try {
+        await ensureSchema(env.DB);
+        return withCors(await handlePublicHistory(env), env);
+      } catch (err) {
+        console.error('public history failed', err);
+        return withCors(new Response(JSON.stringify({ error: 'unavailable' }), { status: 503, headers: { 'Content-Type': 'application/json' } }), env);
+      }
+    }
+
+    // Auth: require API_KEY on all other endpoints
     const key = url.searchParams.get('key');
     if (!key || key !== env.API_KEY) {
       return withCors(unauthorized(), env);
@@ -81,6 +93,10 @@ export default {
     const minutes = new Date().getMinutes();
     if (minutes % 5 === 2) {
       await refreshScheduleCache(env.DB, env.OUTAGE_GROUP);
+    }
+    // Site data: rebuilt only when flagged dirty, on its own tick (renders are :00/:30, schedule :x2/:x7).
+    if (minutes % 5 === 4) {
+      await refreshPublicHistory(env);
     }
 
     await updateWeeklyChart(env);

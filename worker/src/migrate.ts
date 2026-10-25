@@ -37,11 +37,18 @@ CREATE TABLE IF NOT EXISTS telegram_chart (
   hash TEXT,
   pinned INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS public_cache (
+  key TEXT PRIMARY KEY,
+  body TEXT NOT NULL,
+  dirty INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
 `;
 
-// Its presence means the schema is up to date. Any schema change (new table, index or column)
-// must add a new column here or the probe above will skip it.
-const LATEST_COLUMN = 'pinned';
+// Succeeds only on an up-to-date schema. Any schema change (new table, index or column)
+// must update this probe to touch the newest object, or ensureSchema will skip it.
+const SCHEMA_PROBE = 'SELECT dirty FROM public_cache LIMIT 0';
 
 // Columns added after the initial release. ALTER fails if the column exists — that's fine.
 const ALTERS = [
@@ -54,10 +61,10 @@ let migrated = false;
 export async function ensureSchema(db: D1Database): Promise<void> {
   if (migrated) return;
 
-  // Cron usually lands on a fresh isolate, so probe the newest column with one cheap
+  // Cron usually lands on a fresh isolate, so probe the newest schema object with one cheap
   // query instead of re-running every CREATE/ALTER each minute.
   try {
-    await db.prepare(`SELECT ${LATEST_COLUMN} FROM telegram_chart LIMIT 0`).run();
+    await db.prepare(SCHEMA_PROBE).run();
     migrated = true;
     return;
   } catch {

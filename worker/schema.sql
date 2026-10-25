@@ -36,3 +36,10 @@ CREATE TABLE IF NOT EXISTS telegram_chart (
   hash TEXT,
   pinned INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS public_cache (
+  key TEXT PRIMARY KEY,
+  body TEXT NOT NULL,
+  dirty INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
