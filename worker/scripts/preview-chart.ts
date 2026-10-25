@@ -1,11 +1,17 @@
-// Renders the weekly chart for several mock scenarios (same resvg-wasm as the worker).
+// Renders the weekly chart for several mock scenarios with local headless Chrome/Edge
+// (same engine as Browser Run in production).
 // Usage: node scripts/preview-chart.ts [scenario]   → chart-preview-<scenario>.png
-import { readFileSync, writeFileSync } from 'node:fs';
-import { initWasm, Resvg } from '@resvg/resvg-wasm';
-import { buildWeeklyChartSVG, type ChartData, type ChartDay } from '../src/services/chart-image.ts';
+// Set CHROME_PATH if Chrome/Edge isn't in a standard location.
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  buildWeeklyChartSVG, buildChartHTML, CHART_WIDTH, CHART_HEIGHT, type ChartData, type ChartDay,
+} from '../src/services/chart-image.ts';
 
-const root = new URL('..', import.meta.url);
-const read = (p: string) => readFileSync(new URL(p, root));
+const root = fileURLToPath(new URL('..', import.meta.url));
 
 // Half-hour slots, true = power on per schedule.
 function sched(offRanges: [number, number][]): boolean[] {
@@ -80,19 +86,29 @@ const scenarios: Record<string, ChartData> = {
   },
 };
 
-await initWasm(read('node_modules/@resvg/resvg-wasm/index_bg.wasm'));
-const fonts = ['latin-400', 'cyrillic-400', 'latin-600', 'cyrillic-600'].map(f => new Uint8Array(read(`assets/inter-${f}.ttf`)));
+const chrome = [
+  process.env.CHROME_PATH,
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+].find(p => p && existsSync(p));
+if (!chrome) throw new Error('Chrome/Edge not found, set CHROME_PATH');
 
+const tmp = mkdtempSync(join(tmpdir(), 'chart-preview-'));
 const wanted = process.argv[2] ? [process.argv[2]] : Object.keys(scenarios);
 for (const name of wanted) {
   const data = scenarios[name];
   if (!data) throw new Error(`unknown scenario "${name}", have: ${Object.keys(scenarios).join(', ')}`);
-  const t0 = performance.now();
-  const png = new Resvg(buildWeeklyChartSVG(data), {
-    fitTo: { mode: 'width', value: 1280 },
-    font: { fontBuffers: fonts, loadSystemFonts: false, defaultFontFamily: 'Inter' },
-  }).render().asPng();
-  const out = `chart-preview-${name}.png`;
-  writeFileSync(new URL(out, root), png);
-  console.log(`${out}: ${Math.round(png.length / 1024)} KB, render ${Math.round(performance.now() - t0)} ms`);
+  const html = join(tmp, `${name}.html`);
+  writeFileSync(html, buildChartHTML(buildWeeklyChartSVG(data)));
+  const out = join(root, `chart-preview-${name}.png`);
+  execFileSync(chrome, [
+    '--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
+    `--user-data-dir=${join(tmp, 'profile')}`,
+    `--window-size=${CHART_WIDTH},${CHART_HEIGHT}`, '--force-device-scale-factor=1.6',
+    '--virtual-time-budget=5000', `--screenshot=${out}`, pathToFileURL(html).href,
+  ], { stdio: 'ignore' });
+  console.log(`chart-preview-${name}.png`);
 }

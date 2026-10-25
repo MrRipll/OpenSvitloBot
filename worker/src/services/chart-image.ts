@@ -13,7 +13,8 @@
  *   │ legend · next planned outage · updated at                    │
  *   └───────────────────────────────────────────────────────────┘
  *
- * Only Inter 400/600 is bundled, so every font-weight here must be one of those.
+ * Rendered to PNG by Chromium (Browser Run). Inter 400/600 comes from Google Fonts via
+ * buildChartHTML, so every font-weight here must be one of those.
  */
 
 export interface ChartDay {
@@ -87,6 +88,9 @@ const STRIP_Y = BAR_Y + BAR_H + 4;
 const STRIP_H = 5;
 const ROWS_BOTTOM = ROWS_TOP + 7 * ROW_H;
 const H = ROWS_BOTTOM + 82;
+
+export const CHART_WIDTH = W;
+export const CHART_HEIGHT = H;
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -391,4 +395,16 @@ export function buildWeeklyChartSVG(data: ChartData): string {
 
   p.push('</svg>');
   return p.join('\n');
+}
+
+const FONTS_CSS = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=block';
+
+/** Wraps the chart SVG into a page for the headless browser; the viewport must be CHART_WIDTH × CHART_HEIGHT. */
+export function buildChartHTML(svg: string): string {
+  return (
+    `<!doctype html><html><head><meta charset="utf-8">` +
+    `<link rel="stylesheet" href="${FONTS_CSS}">` +
+    `<style>html,body{margin:0;padding:0;background:#fff;overflow:hidden}svg{display:block}</style>` +
+    `</head><body>${svg}</body></html>`
+  );
 }

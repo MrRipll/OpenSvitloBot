@@ -4,58 +4,21 @@ import { getScheduleForWeek } from '../services/schedule-cache';
 import { getScheduledRestoration, getNextScheduledOutage } from '../services/schedule';
 import { getWeekBounds, getKyivParts } from '../handlers/weekly';
 import { buildWeeklyChartSVG, ChartData, fmtDur, fmtClock } from '../services/chart-image';
-import { initWasm, Resvg } from '@resvg/resvg-wasm';
-// @ts-expect-error — wasm asset import
-import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
-
-// @ts-expect-error — binary asset import
-import fontLatin400 from '../../assets/inter-latin-400.ttf';
-// @ts-expect-error — binary asset import
-import fontCyrillic400 from '../../assets/inter-cyrillic-400.ttf';
-// @ts-expect-error — binary asset import
-import fontLatin600 from '../../assets/inter-latin-600.ttf';
-// @ts-expect-error — binary asset import
-import fontCyrillic600 from '../../assets/inter-cyrillic-600.ttf';
+import { renderChartPng } from '../services/chart-render';
 
 /**
- * The chart's notion of "now" advances in steps of this many minutes, so the SVG
- * (and its hash) stays identical between steps and the expensive PNG render is skipped.
- * Status changes (outage start/end) bypass the step and re-render on the next cron tick.
+ * The chart's notion of "now" advances in steps of this many minutes, so the inputs (and their hash)
+ * stay identical between steps and no screenshot is taken. Status changes (outage start/end) bypass
+ * the step and re-render on the next cron tick. Browser Run Free allows 10 browser-minutes a day,
+ * so keep renders/day × ~3 s well under that.
  */
-const CHART_STEP_MIN = 15;
-
-/** Output PNG width. Telegram downsizes photos anyway, so more pixels only cost CPU. */
-const PNG_WIDTH = 1280;
+const CHART_STEP_MIN = 30;
 
 const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 const MONTHS_GEN = [
   'січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
   'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня',
 ];
-
-let wasmInit: Promise<void> | null = null;
-let fontBuffers: Uint8Array[] | null = null;
-
-async function svgToPng(svg: string): Promise<Uint8Array> {
-  if (!wasmInit) wasmInit = initWasm(resvgWasm);
-  await wasmInit;
-  if (!fontBuffers) {
-    fontBuffers = [fontLatin400, fontCyrillic400, fontLatin600, fontCyrillic600].map(f => new Uint8Array(f));
-  }
-  const resvg = new Resvg(svg, {
-    fitTo: { mode: 'width', value: PNG_WIDTH },
-    font: {
-      fontBuffers,
-      loadSystemFonts: false,
-      defaultFontFamily: 'Inter',
-    },
-  });
-  const rendered = resvg.render();
-  const png = rendered.asPng();
-  rendered.free();
-  resvg.free();
-  return png;
-}
 
 async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -113,7 +76,7 @@ interface ChartInputs {
 }
 
 /** Bump when the chart layout/caption changes, so existing charts are re-rendered after deploy. */
-const CHART_VERSION = 2;
+const CHART_VERSION = 3;
 
 async function loadChartInputs(env: Env, now: Date): Promise<ChartInputs> {
   const { weekStartMs, weekEndMs } = getWeekBounds(now);
@@ -293,9 +256,11 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
 
   let png: Uint8Array;
   try {
-    png = await svgToPng(chart.svg);
+    png = await renderChartPng(env.BROWSER, chart.svg);
   } catch (err) {
     console.error('chart render failed', err);
+    // Back off until the inputs change (at most one step) instead of retrying every minute.
+    if (sameWeek) await env.DB.prepare('UPDATE telegram_chart SET hash = ? WHERE id = 1').bind(hash).run();
     return;
   }
 

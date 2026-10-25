@@ -9,11 +9,8 @@
     "preview:chart": "node scripts/preview-chart.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240512.0",
+    "@cloudflare/workers-types": "^5.20261025.1",
     "typescript": "^5.4.0",
-    "wrangler": "^3.57.0"
-  },
-  "dependencies": {
-    "@resvg/resvg-wasm": "^2.6.2"
+    "wrangler": "^4.152.0"
   }
 }

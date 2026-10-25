@@ -1,5 +1,8 @@
+import type { BrowserBinding } from './services/chart-render';
+
 export interface Env {
   DB: D1Database;
+  BROWSER: BrowserBinding;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
   API_KEY: string;
