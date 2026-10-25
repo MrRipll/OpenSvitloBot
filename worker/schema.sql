@@ -33,5 +33,6 @@ CREATE TABLE IF NOT EXISTS telegram_chart (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   message_id INTEGER NOT NULL,
   week_start INTEGER NOT NULL,
-  hash TEXT
+  hash TEXT,
+  pinned INTEGER NOT NULL DEFAULT 0
 );

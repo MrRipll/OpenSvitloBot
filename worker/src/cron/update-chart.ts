@@ -1,5 +1,5 @@
 import { Env } from '../types';
-import { sendPhotoBufferGetId, editMessageMediaBuffer } from '../services/telegram';
+import { sendPhotoBufferGetId, editMessageMediaBuffer, pinChatMessage, unpinChatMessage } from '../services/telegram';
 import { getScheduleForWeek } from '../services/schedule-cache';
 import { getScheduledRestoration, getNextScheduledOutage } from '../services/schedule';
 import { getWeekBounds, getKyivParts } from '../handlers/weekly';
@@ -76,6 +76,7 @@ interface ChartRow {
   message_id: number;
   week_start: number;
   hash: string | null;
+  pinned: number;
 }
 
 const kyivDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' });
@@ -238,6 +239,17 @@ async function buildChart(env: Env, now: Date): Promise<ChartResult> {
   return { svg, caption: lines.join('\n'), weekStartMs };
 }
 
+/** Silently pin the chart message so the current week is always in the chat header. */
+async function pinChart(env: Env, messageId: number): Promise<void> {
+  const res = await pinChatMessage(env, messageId);
+  if (!res.ok) {
+    // Retried on the next cron tick while `pinned` stays 0.
+    console.error('chart pin failed', res.error);
+    return;
+  }
+  await env.DB.prepare('UPDATE telegram_chart SET pinned = 1 WHERE id = 1 AND message_id = ?').bind(messageId).run();
+}
+
 export async function updateWeeklyChart(env: Env): Promise<void> {
   const now = new Date();
   const chart = await buildChart(env, now);
@@ -245,8 +257,12 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
   // Skip the expensive PNG render + Telegram upload if nothing visible changed.
   // The hash lives in D1 so it survives isolate restarts (cron often runs on a fresh isolate).
   const hash = await sha256(chart.svg + chart.caption);
-  const row = await env.DB.prepare('SELECT message_id, week_start, hash FROM telegram_chart WHERE id = 1').first<ChartRow>();
+  const row = await env.DB.prepare('SELECT message_id, week_start, hash, pinned FROM telegram_chart WHERE id = 1').first<ChartRow>();
   const sameWeek = !!row && row.week_start === chart.weekStartMs;
+
+  // Also covers charts posted before pinning existed, and earlier failed pins.
+  if (sameWeek && !row!.pinned) await pinChart(env, row!.message_id);
+
   if (sameWeek && row!.hash === hash) return;
 
   let png: Uint8Array;
@@ -269,11 +285,18 @@ export async function updateWeeklyChart(env: Env): Promise<void> {
   }
 
   const messageId = await sendPhotoBufferGetId(env, png, chart.caption);
-  if (messageId) {
-    await env.DB.prepare(
-      'INSERT INTO telegram_chart (id, message_id, week_start, hash) VALUES (1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET message_id = excluded.message_id, week_start = excluded.week_start, hash = excluded.hash'
-    )
-      .bind(messageId, chart.weekStartMs, hash)
-      .run();
+  if (!messageId) return;
+
+  await env.DB.prepare(
+    'INSERT INTO telegram_chart (id, message_id, week_start, hash, pinned) VALUES (1, ?, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET message_id = excluded.message_id, week_start = excluded.week_start, hash = excluded.hash, pinned = 0'
+  )
+    .bind(messageId, chart.weekStartMs, hash)
+    .run();
+
+  // Pin the new chart first, then unpin the old one, so the header is never empty.
+  await pinChart(env, messageId);
+  if (row && row.message_id !== messageId) {
+    const res = await unpinChatMessage(env, row.message_id);
+    if (!res.ok) console.error('old chart unpin failed', res.error);
   }
 }

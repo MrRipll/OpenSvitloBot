@@ -97,6 +97,7 @@ export async function sendPhotoBufferGetId(
   form.append('chat_id', env.TELEGRAM_CHAT_ID);
   form.append('caption', caption);
   form.append('parse_mode', 'HTML');
+  form.append('disable_notification', 'true');
   form.append('photo', new Blob([pngData], { type: 'image/png' }), 'chart.png');
 
   const resp = await fetch(url, { method: 'POST', body: form });
@@ -132,6 +133,32 @@ export async function editMessageMediaBuffer(
   if (resp.ok) return { ok: true };
   const data = await resp.json<{ description?: string }>().catch(() => ({ description: undefined }));
   return { ok: false, error: data.description || `HTTP ${resp.status}` };
+}
+
+async function callChatMethod(
+  env: Env,
+  method: string,
+  params: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return { ok: false, error: 'telegram not configured' };
+
+  const resp = await fetch(`${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, ...params }),
+  });
+  if (resp.ok) return { ok: true };
+  const data = await resp.json<{ description?: string }>().catch(() => ({ description: undefined }));
+  return { ok: false, error: data.description || `HTTP ${resp.status}` };
+}
+
+/** Pin without notifying members. Requires pin rights (in channels: "Edit messages"). */
+export function pinChatMessage(env: Env, messageId: number) {
+  return callChatMethod(env, 'pinChatMessage', { message_id: messageId, disable_notification: true });
+}
+
+export function unpinChatMessage(env: Env, messageId: number) {
+  return callChatMethod(env, 'unpinChatMessage', { message_id: messageId });
 }
 
 function kyivTimeStr(date: Date): string {

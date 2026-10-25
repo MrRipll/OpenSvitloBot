@@ -34,13 +34,15 @@ CREATE TABLE IF NOT EXISTS telegram_chart (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   message_id INTEGER NOT NULL,
   week_start INTEGER NOT NULL,
-  hash TEXT
+  hash TEXT,
+  pinned INTEGER NOT NULL DEFAULT 0
 );
 `;
 
 // Columns added after the initial release. ALTER fails if the column exists — that's fine.
 const ALTERS = [
   'ALTER TABLE telegram_chart ADD COLUMN hash TEXT',
+  'ALTER TABLE telegram_chart ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
 ];
 
 let migrated = false;
